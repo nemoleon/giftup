@@ -20,6 +20,8 @@ DB = os.environ.get("DB", "giftup.db")
 HERE = os.path.dirname(os.path.abspath(__file__))
 CAT = json.load(open(os.path.join(HERE, "catalog.json"), encoding="utf-8"))  # индекс = id типа на фронте
 EDGE, MAXCH = 0.95, 95.0
+STARS_PER_GRAM = float(os.environ.get("STARS_PER_GRAM", "125"))   # курс пополнения звёздами: сколько звёзд за 1 GRAM
+STARS_MIN, STARS_MAX = 15, 10000
 DEPOSIT_ADDRESS = os.environ.get("DEPOSIT_ADDRESS", "")        # адрес кошелька, куда игроки шлют GRAM (отдельный кошелёк!)
 TONCENTER_KEY = os.environ.get("TONCENTER_KEY", "")            # необязательно: ключ toncenter.com (снимает лимит 1 запрос/сек)
 MIN_DEPOSIT = float(os.environ.get("MIN_DEPOSIT", "0.1"))      # минимальное пополнение, GRAM
@@ -77,6 +79,7 @@ def init_db():
       status text default 'pending', err text, fee real default 0);
     create table if not exists star_pay(charge text primary key, user integer, type integer, stars integer, ok integer default 1);
     create table if not exists deposits(hash text primary key, user integer, amount real, comment text, src text, credited integer default 0);
+    create table if not exists hist(id integer primary key autoincrement, user integer, ts integer, want integer, no integer, win integer, ch real, price real);
     create table if not exists meta(k text primary key, v text);""")
     try: c.execute("alter table wd add column fee real default 0")   # для старых баз
     except Exception: pass
@@ -126,8 +129,12 @@ def state(c, uid):
            c.execute("select * from gifts where owner=? and status='held' and type>=0 order by id desc", (uid,))]
     stock = {r["type"]: r["n"] for r in c.execute(
         "select type, count(*) n from gifts where status='house' and type>=0 group by type")}
-    return {"bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
-            "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "online": online_count(), "owner": owner_username(),
+    hist = [{"t": r["want"], "no": r["no"], "w": r["win"], "ch": r["ch"], "ts": r["ts"]} for r in
+            c.execute("select * from hist where user=? order by id desc limit 40", (uid,))]
+    bg = c.execute("select want t, no, ch from hist where user=? and win=1 order by price desc, id desc limit 1", (uid,)).fetchone()
+    return {"hist": hist, "bg": dict(bg) if bg else None,
+            "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
+            "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "spg": STARS_PER_GRAM, "smin": STARS_MIN, "online": online_count(), "owner": owner_username(),
             "total": c.execute("select coalesce(sum(boosts),0) from users").fetchone()[0]}
 
 # ---------- вход через Telegram (проверка initData) ----------
@@ -260,6 +267,24 @@ def api_stars_buy(body: dict, x_init_data: str = Header("")):
         print("invoice:", e); return {"ok": False, "error": "Не удалось создать счёт, попробуй позже"}
     return {"ok": True, "link": link}
 
+@app.post("/api/stars/topup")
+def api_topup(body: dict, x_init_data: str = Header("")):
+    usr = check_init(x_init_data); uid = usr["id"]
+    if not hit(f"topup:{uid}", 10, 60): return {"ok": False, "error": "Слишком часто, подожди немного"}
+    try: n = int(body.get("stars"))
+    except Exception: return {"ok": False, "error": "Неверная сумма"}
+    if not STARS_MIN <= n <= STARS_MAX: return {"ok": False, "error": f"Сумма от {STARS_MIN} до {STARS_MAX} звёзд"}
+    c = db()
+    try: get_user(c, uid, usr.get("first_name", ""))
+    finally: c.close()
+    gm = round(n / STARS_PER_GRAM, 4)
+    try:
+        link = tg("createInvoiceLink", title="Пополнение GiftUp", description=f"Пополнение баланса: {gm} GRAM",
+                  payload=f"tp:{uid}:{n}:{secrets.token_hex(4)}", currency="XTR", prices=[{"label": "Пополнение", "amount": n}])
+    except Exception as e:
+        print("topup invoice:", e); return {"ok": False, "error": "Не удалось создать счёт, попробуй позже"}
+    return {"ok": True, "link": link}
+
 @app.get("/api/state")
 def api_state(x_init_data: str = Header("")):
     usr = check_init(x_init_data)
@@ -314,6 +339,8 @@ def api_boost(body: dict, x_init_data: str = Header("")):
                 c.execute("update gifts set owner=?, status='held' where id=?", (uid, target["id"]))
                 gift = {"id": target["id"], "t": want, "no": target["number"]}
             c.execute("update users set best=max(best,?) where id=?", (price, uid))
+        c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,?,?,?)",
+                  (uid, int(time.time()), want, (gift or {}).get("no", 0), 1 if win else 0, ch, price))
         st = state(c, uid); c.execute("commit")
         return {"ok": True, "win": win, "roll": roll, "chance": ch, "gift": gift, "state": st}
     except Exception:
@@ -516,7 +543,17 @@ def parse_payload(p):
     m = re.fullmatch(r"gu:(\d+):(\d+):[0-9a-f]+", p or "")
     return (int(m.group(1)), int(m.group(2))) if m else (None, None)
 
+def parse_topup(p):
+    m = re.fullmatch(r"tp:(\d+):(\d+):[0-9a-f]+", p or "")
+    return (int(m.group(1)), int(m.group(2))) if m else (None, None)
+
 def on_pre_checkout(q):
+    tu, tn = parse_topup(q.get("invoice_payload"))
+    if tu is not None:
+        ok = q.get("currency") == "XTR" and tu == (q.get("from") or {}).get("id") and q.get("total_amount") == tn and STARS_MIN <= tn <= STARS_MAX
+        try: tg("answerPreCheckoutQuery", pre_checkout_query_id=q["id"], ok=bool(ok), **({} if ok else {"error_message": "Неверный платёж"}))
+        except Exception as e: print("pre_checkout:", e)
+        return
     uid, t = parse_payload(q.get("invoice_payload"))
     err = None
     if q.get("currency") != "XTR" or uid is None or uid != (q.get("from") or {}).get("id") or not 0 <= t < len(CAT):
@@ -531,6 +568,23 @@ def on_pre_checkout(q):
 def on_stars_paid(m):
     sp = m["successful_payment"]; uid, t = parse_payload(sp.get("invoice_payload"))
     charge = sp.get("telegram_payment_charge_id")
+    tu, tn = parse_topup(sp.get("invoice_payload"))
+    if tu is not None:
+        if tu != (m.get("from") or {}).get("id") or not charge or sp.get("total_amount") != tn: print("странный платёж", sp); return
+        gm = round(tn / STARS_PER_GRAM, 4); c = db()
+        try:
+            c.execute("begin immediate")
+            if c.execute("select 1 from star_pay where charge=?", (charge,)).fetchone(): c.execute("rollback"); return
+            get_user(c, tu, (m.get("from") or {}).get("first_name", ""))
+            c.execute("update users set bal=bal+? where id=?", (gm, tu))
+            c.execute("insert into star_pay(charge,user,type,stars,ok) values(?,?,?,?,1)", (charge, tu, -1, tn))
+            c.execute("commit")
+        except Exception:
+            c.execute("rollback"); raise
+        finally: c.close()
+        print(f"[{stamp()}] ⭐ пополнение: {tu} +{gm} GRAM за {tn} звёзд", flush=True)
+        notify(tu, f"✅ Баланс пополнен на {gm} GRAM ({tn} ⭐)")
+        return
     if uid is None or uid != (m.get("from") or {}).get("id") or not 0 <= t < len(CAT) or not charge: print("странный платёж", sp); return
     x = CAT[t]; refund = False; c = db()
     try:
