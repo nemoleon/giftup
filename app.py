@@ -5,7 +5,7 @@ GiftUp — сервер: вход через Telegram, база SQLite, чест
 Запуск:  pip install fastapi uvicorn httpx
          BOT_TOKEN=... HOUSE_IDS=твой_tg_id uvicorn app:app --host 0.0.0.0 --port 8000
 """
-import os, re, json, time, hmac, hashlib, secrets, sqlite3, threading, datetime
+import base64, html, os, re, json, time, hmac, hashlib, secrets, sqlite3, threading, datetime
 from urllib.parse import parse_qsl
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -129,10 +129,12 @@ def state(c, uid):
            c.execute("select * from gifts where owner=? and status='held' and type>=0 order by id desc", (uid,))]
     stock = {r["type"]: r["n"] for r in c.execute(
         "select type, count(*) n from gifts where status='house' and type>=0 group by type")}
+    si = [{"id": r["id"], "t": r["type"], "no": r["number"]} for r in
+          c.execute("select id,type,number from gifts where status='house' and type>=0 order by id desc limit 300")]
     hist = [{"t": r["want"], "no": r["no"], "w": r["win"], "ch": r["ch"], "ts": r["ts"]} for r in
             c.execute("select * from hist where user=? order by id desc limit 40", (uid,))]
     bg = c.execute("select want t, no, ch from hist where user=? and win=1 order by price desc, id desc limit 1", (uid,)).fetchone()
-    return {"hist": hist, "bg": dict(bg) if bg else None,
+    return {"stock_items": si, "hist": hist, "bg": dict(bg) if bg else None,
             "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
             "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "spg": STARS_PER_GRAM, "smin": STARS_MIN, "online": online_count(), "owner": owner_username(),
             "total": c.execute("select coalesce(sum(boosts),0) from users").fetchone()[0]}
@@ -285,6 +287,46 @@ def api_topup(body: dict, x_init_data: str = Header("")):
         print("topup invoice:", e); return {"ok": False, "error": "Не удалось создать счёт, попробуй позже"}
     return {"ok": True, "link": link}
 
+def _norm(x): return re.sub(r"[^a-z0-9а-яё]", "", (x or "").lower())
+_IMG_OK = ("telegram.org", "fragment.com", "t.me", "telesco.pe", "cdn-telegram.org")
+def fetch_nft(slug):
+    """Название, номер и фото NFT по ссылке t.me/nft/<Имя>-<номер> (публичная страница подарка)."""
+    r = httpx.get(f"https://t.me/nft/{slug}", follow_redirects=True, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+    h = r.text
+    def og(k):
+        m = re.search(r'<meta[^>]+property="og:%s"[^>]+content="([^"]*)"' % k, h) or re.search(r'<meta[^>]+content="([^"]*)"[^>]+property="og:%s"' % k, h)
+        return html.unescape(m.group(1)).strip() if m else ""
+    title = og("title"); desc = og("description"); img = og("image")
+    base, num = slug.rsplit("-", 1)
+    m = re.match(r"^(.*?)\s*#(\d+)\s*$", title)
+    name = m.group(1).strip() if m else re.sub(r"(?<=[a-z])(?=[A-Z])", " ", base)
+    host = re.sub(r"^https?://([^/]+).*", r"\1", img)
+    if not img.startswith("https://") or not any(host == d or host.endswith("." + d) for d in _IMG_OK):
+        img = f"https://nft.fragment.com/gift/{slug.lower()}.medium.jpg"
+    data = ""
+    try:
+        ir = httpx.get(img, follow_redirects=True, timeout=12)
+        if ir.status_code == 200 and len(ir.content) < 600_000:
+            data = "data:" + (ir.headers.get("content-type", "image/jpeg").split(";")[0]) + ";base64," + base64.b64encode(ir.content).decode()
+    except Exception as e: print("nft img:", e, flush=True)
+    return {"name": name, "number": int(num), "slug": slug, "desc": desc[:240], "image": data}
+
+@app.post("/api/nft/preview")
+def api_nft_preview(body: dict, x_init_data: str = Header("")):
+    usr = check_init(x_init_data); uid = usr["id"]
+    if not hit(f"nftp:{uid}", 10, 60): return {"ok": False, "error": "Слишком часто, подожди немного"}
+    m = re.search(r"(?:(?:https?://)?(?:t|telegram)\.me/nft/)?([A-Za-z0-9_]{2,64}-\d{1,9})\b", str(body.get("link", "")).strip())
+    if not m: return {"ok": False, "error": "Нужна ссылка вида t.me/nft/Название-123"}
+    try: info = fetch_nft(m.group(1))
+    except Exception as e:
+        print("nft preview:", e, flush=True); return {"ok": False, "error": "Не удалось открыть ссылку, проверь её и попробуй ещё раз"}
+    t = next((i for i, x in enumerate(CAT) if not x.get("nw") and _norm(x.get("key") or x["name"]) == _norm(info["name"])), -1)
+    c = db()
+    try:
+        mine = t >= 0 and c.execute("select 1 from gifts where owner=? and type=? and number=? and status='held'", (uid, t, info["number"])).fetchone() is not None
+    finally: c.close()
+    return {"ok": True, "info": info, "type": t, "mine": mine, "owner": owner_username()}
+
 @app.get("/api/state")
 def api_state(x_init_data: str = Header("")):
     usr = check_init(x_init_data)
@@ -319,7 +361,11 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         if price <= stake: return fail(c, "Выбери подарок дороже своей ставки")
         if CAT[want].get("nw"): target = None            # обычные подарки выдаются без остатка (создаются при выигрыше)
         else:
-            target = c.execute("select * from gifts where type=? and status='house' order by random() limit 1", (want,)).fetchone()
+            target = None
+            try: wg = int(body.get("wgift") or 0)
+            except Exception: wg = 0
+            if wg: target = c.execute("select * from gifts where id=? and type=? and status='house'", (wg, want)).fetchone()
+            if not target: target = c.execute("select * from gifts where type=? and status='house' order by random() limit 1", (want,)).fetchone()
             if not target: return fail(c, "Этого подарка сейчас нет в наличии")
         ch = min(MAXCH, stake / price * 100 * EDGE)
         # честный рандом: HMAC(server_seed, "id:nonce"); хэш seed виден игроку заранее
@@ -479,6 +525,15 @@ def notify(uid, text):
     try: tg("sendMessage", chat_id=uid, text=text)
     except Exception as e: print("notify:", e)
 
+def reply_in_chat(m, text):
+    """Отвечает в том же чате от имени аккаунта (через бизнес-подключение) — работает, даже если человек не запускал бота; иначе личное сообщение от бота."""
+    bc = m.get("business_connection_id") or meta_get("bc"); chat = (m.get("chat") or {}).get("id")
+    if bc and chat:
+        try: tg("sendMessage", business_connection_id=bc, chat_id=chat, text=text); return
+        except Exception as e: print("ответ в чат:", e, flush=True)
+    uid = (m.get("from") or {}).get("id")
+    if uid: notify(uid, text)
+
 def match(base, model):
     base, model, best = (base or "").lower(), (model or "").lower(), -1
     for i, x in enumerate(CAT):
@@ -520,8 +575,8 @@ def on_message(m):
         nm = CAT[t]["name"] if t >= 0 else g.get("base_name", "подарок")
         print(f"[{stamp()}] ↳ ЗАЧИСЛЕН: {nm} #{g.get('number')} → {'в склад (хозяин)' if house else 'в инвентарь ' + str(sender)}"
               + ("" if t >= 0 else "  ⚠ НЕ РАСПОЗНАН (нет в catalog.json)"), flush=True)
-        if t < 0: notify(sender, f"⚠️ Ваш NFT «{nm}» #{g.get('number')} получен, но пока не распознан. Напиши в поддержку.")
-        elif not house: notify(sender, f"✅ Ваш NFT «{nm}» #{g.get('number')} был зачислен в ваш инвентарь")
+        if t < 0: reply_in_chat(m, f"⚠️ Ваш NFT «{nm}» #{g.get('number')} получен, но пока не распознан. Напишите в поддержку.")
+        elif not house: reply_in_chat(m, f"✅ Ваш NFT «{nm}» #{g.get('number')} зачислен в ваш инвентарь GiftUp. Откройте приложение, чтобы улучшить его.")
 
 def on_start(m):
     fr = m.get("from") or {}
