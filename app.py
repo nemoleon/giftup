@@ -26,6 +26,7 @@ DEPOSIT_ADDRESS = os.environ.get("DEPOSIT_ADDRESS", "")        # адрес ко
 TONCENTER_KEY = os.environ.get("TONCENTER_KEY", "")            # необязательно: ключ toncenter.com (снимает лимит 1 запрос/сек)
 MIN_DEPOSIT = float(os.environ.get("MIN_DEPOSIT", "0.1"))      # минимальное пополнение, GRAM
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")      # https://твой-домен (для манифеста TON Connect)
+BUSINESS_OWNER_ID = os.environ.get("BUSINESS_OWNER_ID", "").strip()   # id аккаунта-склада: подключения от других аккаунтов игнорируются
 WITHDRAW_REGULAR = os.environ.get("WITHDRAW_REGULAR") == "1"   # =1 — разрешить вывод обычных подарков за звёзды (за счёт звёзд бота)
 WITHDRAW_FEE = float(os.environ.get("WITHDRAW_FEE", "0.4"))   # цена вывода подарка, GRAM
 TRUST_PROXY = os.environ.get("TRUST_PROXY") == "1"              # =1, если сервер стоит за Caddy/nginx
@@ -870,6 +871,8 @@ def poll_loop():
                 bc = u.get("business_connection")
                 if bc:
                     print(f"[{stamp()}] бизнес-подключение: user={bc['user']['id']} включено={bc.get('is_enabled')} права={bc.get('rights')}", flush=True)
+                if bc and BUSINESS_OWNER_ID and str(bc["user"]["id"]) != BUSINESS_OWNER_ID:
+                    print(f"[{stamp()}] ⚠ подключение от чужого аккаунта {bc['user']['id']} проигнорировано (склад — {BUSINESS_OWNER_ID})", flush=True); bc = None
                 if bc and bc.get("is_enabled"):
                     meta_set("bc", bc["id"]); meta_set("bc_owner", str(bc["user"]["id"]))
                     try: import_stock()
