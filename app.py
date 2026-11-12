@@ -140,7 +140,65 @@ def save_nft_image(slug):
         except Exception as e: print("nft img:", u, e, flush=True)
     return ""
 
-def attach_image(ogid, base, number):
+# ---------- цена NFT по «Ценности» из Telegram (вход под аккаунтом, только чтение) ----------
+TG_API_ID = os.environ.get("TG_API_ID", ""); TG_API_HASH = os.environ.get("TG_API_HASH", ""); TG_SESSION = os.environ.get("TG_SESSION", "")
+_ub = {"loop": None, "cl": None}
+_rate = {"t": 0, "r": {}}
+
+def ub_start():
+    """Поднимает клиент Telethon в отдельном потоке. Нужны TG_API_ID, TG_API_HASH, TG_SESSION (создаются скриптом tg_login.py)."""
+    if not (TG_API_ID and TG_API_HASH and TG_SESSION): return
+    def run():
+        try:
+            import asyncio
+            from telethon import TelegramClient
+            from telethon.sessions import StringSession
+            loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
+            cl = TelegramClient(StringSession(TG_SESSION), int(TG_API_ID), TG_API_HASH)
+            loop.run_until_complete(cl.connect())
+            if not loop.run_until_complete(cl.is_user_authorized()):
+                print("цены по ценности: сессия не авторизована, запусти tg_login.py заново", flush=True); return
+            _ub["loop"], _ub["cl"] = loop, cl
+            print("цены по ценности: аккаунт подключён", flush=True)
+            loop.run_forever()
+        except Exception as e: print("цены по ценности: не запустилось:", e, flush=True)
+    threading.Thread(target=run, daemon=True).start()
+
+def ton_rate(cur):
+    """Сколько единиц валюты cur в 1 TON."""
+    cur = (cur or "").lower()
+    if cur == "ton": return 1.0
+    if time.time() - _rate["t"] > 600:
+        r = httpx.get("https://api.coingecko.com/api/v3/simple/price", params={"ids": "the-open-network", "vs_currencies": "usd,eur,rub"}, timeout=10).json()["the-open-network"]
+        _rate["t"], _rate["r"] = time.time(), r
+    return float(_rate["r"][cur])
+
+def tg_value_ton(slug):
+    """«Ценность» подарка из Telegram, пересчитанная в TON (=GRAM в приложении). None, если не вышло."""
+    if not _ub["cl"]: return None
+    import asyncio
+    from telethon.tl.functions.payments import GetUniqueStarGiftValueInfoRequest as Req
+    r = asyncio.run_coroutine_threadsafe(_ub["cl"](Req(slug=slug)), _ub["loop"]).result(30)
+    cur = (r.currency or "").upper(); v = float(r.value)
+    ton = v / 1e9 if cur == "TON" else (v / 100) / ton_rate(cur)
+    print(f"[{stamp()}] ценность {slug}: {v} {cur} → {ton:.2f} TON", flush=True)
+    return round(ton, 2) if ton > 0 else None
+
+def auto_price(t, base, number):
+    x = CAT[t] if 0 <= t < len(CAT) else None
+    if not x or not x.get("custom") or x.get("fixed") or not _ub["cl"]: return
+    try:
+        v = tg_value_ton(nft_slug(base, number))
+        if v is None: return
+        with _cat_lock: x["price"] = v; x["vp"] = True
+        c = db()
+        try: c.execute("update custom set price=? where id=? and fixed=0", (v, x["custom"]))
+        finally: c.close()
+        print(f"[{stamp()}] 💰 цена {x['name']} / {x.get('model')} = {v} GRAM (по ценности Telegram)", flush=True)
+    except Exception as e: print("auto_price:", base, number, e, flush=True)
+
+def attach_image(ogid, base, number, t=-1):
+    if t >= 0: auto_price(t, base, number)
     try:
         p = save_nft_image(nft_slug(base, number))
         if p:
@@ -203,8 +261,9 @@ def state(c, uid):
         "select type, count(*) n from gifts where status='house' and type>=0 group by type")}
     si = [{"id": r["id"], "t": r["type"], "no": r["number"], "im": r["img"] or ""} for r in
           c.execute("select id,type,number,img from gifts where status='house' and type>=0 order by id desc limit 300")]
-    hist = [{"t": r["want"], "no": r["no"], "w": r["win"], "ch": r["ch"], "ts": r["ts"]} for r in
-            c.execute("select * from hist where user=? order by id desc limit 40", (uid,))]
+    hist = [{"t": r["want"], "no": r["no"], "w": r["win"], "ch": r["ch"], "ts": r["ts"], "im": r["img"] or ""} for r in
+            c.execute("select h.*, (select g.img from gifts g where g.type=h.want and g.number=h.no and h.no>0 order by g.id desc limit 1) as img "
+                      "from hist h where h.user=? order by h.id desc limit 150", (uid,))]
     bg = c.execute("select want t, no, ch from hist where user=? and win=1 order by price desc, id desc limit 1", (uid,)).fetchone()
     return {"custom": [{"t": i, "n": x["name"], "v": x["price"], "m": x.get("model", "")} for i, x in enumerate(CAT) if x.get("custom")],
             "stock_items": si, "hist": hist, "bg": dict(bg) if bg else None,
@@ -458,8 +517,14 @@ def api_boost(body: dict, x_init_data: str = Header("")):
                 c.execute("update gifts set owner=?, status='held' where id=?", (uid, target["id"]))
                 gift = {"id": target["id"], "t": want, "no": target["number"], "im": target["img"] or ""}
             c.execute("update users set best=max(best,?) where id=?", (price, uid))
-        c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,?,?,?)",
-                  (uid, int(time.time()), want, (gift or {}).get("no", 0), 1 if win else 0, ch, price))
+        now = int(time.time())
+        if win or not gifts:    # выигрыш (или проигрыш ставки с баланса) — строка про желаемый подарок
+            c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,?,?,?)",
+                      (uid, now, want, (gift or {}).get("no", 0), 1 if win else 0, ch, price))
+        else:                   # проигрыш: в истории — сгоревшие подарки-ставки
+            for g in gifts:
+                c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,?,?,?)",
+                          (uid, now, g["type"], g["number"], 0, ch, CAT[g["type"]]["price"]))
         st = state(c, uid); c.execute("commit")
         return {"ok": True, "win": win, "roll": roll, "chance": ch, "gift": gift, "state": st}
     except Exception:
@@ -538,6 +603,7 @@ def withdraw_regular(uid, g):
         if err:
             c.execute("update gifts set status='held' where id=?", (g["id"],)); return {"ok": False, "error": err}
         print(f"[{stamp()}] 📤 выдан обычный подарок «{CAT[g['type']]['name']}» → {uid}", flush=True)
+        c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,2,0,?)", (uid, int(time.time()), g["type"], g["number"], CAT[g["type"]]["price"]))
         c.execute("begin immediate"); st = state(c, uid); c.execute("commit")
         return {"ok": True, "state": st}
     finally: c.close()
@@ -558,6 +624,7 @@ def api_withdraw(body: dict, x_init_data: str = Header("")):
         if u["bal"] + 1e-9 < WITHDRAW_FEE: return fail(c, f"Для вывода нужно {WITHDRAW_FEE} GRAM на балансе")
         c.execute("update users set bal=bal-? where id=?", (WITHDRAW_FEE, uid))
         c.execute("update gifts set status='out' where id=?", (g["id"],))
+        c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,2,0,?)", (uid, int(time.time()), g["type"], g["number"], CAT[g["type"]]["price"] if g["type"] >= 0 else 0))
         c.execute("insert into wd(gift,user,fee) values(?,?,?)", (g["id"], uid, WITHDRAW_FEE))
         st = state(c, uid); c.execute("commit")
         return {"ok": True, "state": st}
@@ -645,7 +712,7 @@ def on_message(m):
     finally: c.close()
     if not cur.rowcount:
         print(f"[{stamp()}] ↳ уже учтён ранее (повтор), пропуск", flush=True)
-    threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number")), daemon=True).start()
+    threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number"), t), daemon=True).start()
     if cur.rowcount:
         nm = CAT[t]["name"] if t >= 0 else g.get("base_name", "подарок")
         print(f"[{stamp()}] ↳ ЗАЧИСЛЕН: {nm} #{g.get('number')} → {'в склад (хозяин)' if house else 'в инвентарь ' + str(sender)}"
@@ -691,7 +758,8 @@ def import_stock():
                     c.execute("update gifts set type=?, status='house', owner=null where id=?", (t, row["id"]))
                 need_img = bool(row) and not row["img"]
             finally: c.close()
-            if need_img: threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number")), daemon=True).start()
+            need_pr = t >= 0 and CAT[t].get("custom") and not CAT[t].get("fixed") and not CAT[t].get("vp") and _ub["cl"] is not None
+            if need_img or need_pr: threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number"), t), daemon=True).start()
             if cur.rowcount:
                 n_new += 1
                 print(f"[{stamp()}] 📦 импорт на склад: {g.get('base_name')} #{g.get('number')} модель {(g.get('model') or {}).get('name')}"
@@ -919,9 +987,9 @@ def price_loop():   # необязательно: PRICE_SYNC=1 и pip install Te
     api = TelegramGifts()
     while True:
         for x in CAT:
-            if not x["key"] or x.get("fixed"): continue
+            if not x["key"] or x.get("fixed") or (x.get("custom") and _ub["cl"]): continue
             try:
-                info = api.get_gift(x["key"])
+                info = api.get_gift(x["key"]) or {}
                 v = [p for k, p in (info.get("prices") or {}).items() if k.endswith("_price_ton") and isinstance(p, (int, float)) and p > 0]
                 if v:
                     x["price"] = round(sum(v) / len(v), 2)
@@ -934,7 +1002,7 @@ def price_loop():   # необязательно: PRICE_SYNC=1 и pip install Te
 
 @app.on_event("startup")
 def startup():
-    init_db(); load_custom()
+    init_db(); load_custom(); ub_start()
     threading.Thread(target=poll_loop, daemon=True).start()
     threading.Thread(target=withdraw_loop, daemon=True).start()
     threading.Thread(target=deposit_loop, daemon=True).start()

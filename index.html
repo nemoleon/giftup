@@ -25,6 +25,10 @@ button{font:inherit;color:inherit;border:0;cursor:pointer}
 .ptl{display:flex;gap:8px;margin-bottom:10px}.ptl .tt{flex:1;background:var(--cd2);border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--mut);font-weight:600;gap:6px}
 .pg{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pi{background:var(--cd2);border-radius:18px;padding:10px;text-align:center}.pi img{width:96px;height:96px;object-fit:contain;border-radius:14px}.pi b{display:block;font-size:14px;margin-top:4px}.pi small{color:var(--mut);display:block}
 .pw{width:100%;margin-top:8px;padding:10px;border-radius:14px;background:var(--ac);color:#1a0b13;font-weight:800}.pw[disabled]{opacity:.4}
+.hg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.hc{position:relative;aspect-ratio:.7;border-radius:16px;background:var(--cd2) center/cover no-repeat;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.hc .hn{margin:0 4px;background:rgba(15,15,17,.9);border-radius:12px;padding:6px 8px;min-width:0}.hc .hn b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hc .hn small{color:var(--mut);font-size:11px}
+.hs{margin:4px;padding:7px 0;border-radius:12px;text-align:center;font-weight:700;font-size:12px}.hs.w{background:#173a27;color:#3ddc84}.hs.l{background:#3b1a22;color:#ff5470}.hs.o{background:#3a1830;color:var(--ac)}
+.hp{display:flex;align-items:center;justify-content:space-between;margin-top:12px;color:var(--mut);font-weight:600}.hp button{width:44px;height:44px;border-radius:50%;background:var(--cd2);color:#fff;font-size:22px}.hp button[disabled]{opacity:.3}
 .hr{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1f1f25}.hr img{width:44px;height:44px;object-fit:contain;border-radius:10px}.hr .hm{flex:1}.hr small{color:var(--mut);display:block}.ok{color:#3ddc84}.no{color:#ff5470}
 #dm{position:fixed;inset:0;z-index:12;background:#0c0c0f;display:none;flex-direction:column;padding:calc(16px + env(safe-area-inset-top,0px)) 14px 20px;overflow:auto}#dm.open{display:flex}
 .dh{display:flex;align-items:center;gap:8px;margin-bottom:14px}.dh .dt{flex:1;display:flex;align-items:center;gap:10px;background:#17121a;border-radius:30px;padding:8px 18px 8px 8px;font-weight:600;font-size:17px;height:52px}
@@ -143,6 +147,31 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 </style>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script></head><body>
+<div id="ldr"><svg viewBox="110 100 292 300" aria-hidden="true"><g fill="none" stroke="#ff4fa0" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+<path id="ldc2" d="M150 214L256 124L362 214"/><path id="ldc1" d="M150 292L256 202L362 292"/><path id="ldc0" d="M150 370L256 280L362 370"/></g>
+<path id="ldt" d="M256 318L276 350H236Z" fill="#ff4fa0" stroke="#ff4fa0" stroke-width="10" stroke-linejoin="round"/></svg>
+<div class="ldp"><span id="ldn">0</span>%<small>Загрузка</small></div><div class="ldb"><i id="ldf"></i></div></div>
+<style>
+#ldr{position:fixed;inset:0;z-index:100000;background:#0f0f11;display:flex;align-items:center;justify-content:center;transition:opacity .4s}
+#ldr svg{width:min(62vw,270px);height:auto;overflow:visible;filter:drop-shadow(0 0 24px rgba(255,79,160,.28))}
+#ldr .ldp{position:absolute;left:0;right:0;bottom:max(46px,env(safe-area-inset-bottom));text-align:center;font-weight:800;font-size:34px;color:#fff;font-variant-numeric:tabular-nums}
+#ldr .ldp small{display:block;margin-top:6px;font-size:13px;font-weight:600;color:#8d8d98}
+#ldr .ldb{position:absolute;left:50%;bottom:max(24px,calc(env(safe-area-inset-bottom) - 12px));width:140px;height:4px;margin-left:-70px;border-radius:4px;background:#241a20;overflow:hidden}
+#ldr .ldb i{display:block;height:100%;width:0;background:#ff4fa0;border-radius:4px}
+</style>
+<script>
+(function(){var cs=[ldc0,ldc1,ldc2],OP=[1,.68,.38],CY=[370,292,214],TY=350,tr=ldt,box=document.getElementById("ldr"),loaded=false,gone=false,t0=null,MIN=2700,MAX=12000;
+function cl(x){return x<0?0:x>1?1:x}function ez(x){return 1-Math.pow(1-x,3)}function ob(x){var c=1.2;return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)}
+window.ldDone=function(){loaded=true};
+function frame(ts){if(gone)return;if(t0===null)t0=ts;var t=ts-t0,fin=(loaded&&t>=MIN)||t>=MAX;
+  var pc=Math.round(ez(cl(t/3000))*(loaded?100:92));if(fin)pc=100;ldn.textContent=pc;ldf.style.width=pc+"%";
+  tr.style.transformOrigin="256px 340px";tr.style.transform="scale("+(ez(cl(t/380))*(1+.1*Math.sin(t/150)*(1-cl((t-500)/500))))+")";tr.style.opacity=(1-ez(cl((t-650)/500))).toFixed(3);
+  cs.forEach(function(c,i){var s=600+i*480,p=cl((t-s)/950),m=ob(p),e=ez(cl((t-s)/500));
+    c.style.transformOrigin="256px "+(CY[i]-10)+"px";c.style.transform="translateY("+((TY-CY[i])*(1-m))+"px) scale("+(.25+.75*m)+")";c.style.opacity=(OP[i]*e).toFixed(3)});
+  if(fin){gone=true;setTimeout(function(){box.style.opacity="0";setTimeout(function(){box.remove()},450)},250);return}
+  requestAnimationFrame(frame)}
+requestAnimationFrame(frame)})();
+</script>
 <div id="sp"><svg viewBox="0 0 640 640" aria-hidden="true"><g id="spw"><circle cx="320" cy="320" r="175" fill="none" stroke="#601c40" stroke-width="80"/><circle id="spa" cx="320" cy="320" r="175" fill="none" stroke="#ff4fa0" stroke-width="80" stroke-dasharray="0 1100" transform="rotate(-20 320 320)"/></g><polygon id="spt" points="320,225 258,365 382,365" fill="#ff4fa0"/><circle id="spd" cx="320" cy="410" r="26" fill="#ff4fa0"/></svg><div id="spn"><span class="dg" id="spH" style="width:0"><div><span></span><span>1</span></div></span><span class="dg"><div id="spT"></div></span><span class="dg"><div id="spO"></div></span><span class="pc">%</span></div></div>
 <div id="vb">
  <div class="top"><span class="st" title="Онлайн сейчас"><svg viewBox="0 0 24 24" width="22" height="22" fill="#ff4fa0"><circle cx="8.5" cy="8" r="3.6"/><circle cx="16.5" cy="8.6" r="3"/><path d="M1.5 19c0-3.6 3-6 7-6s7 2.4 7 6z"/><path d="M16 13.4c3.6 0 6.5 2 6.5 5.1h-5.2c0-2-.6-3.6-1.9-5z" opacity=".8"/></svg><span id="bc">1</span></span><span class="st" title="Всего апгрейдов"><svg viewBox="0 0 24 24" width="24" height="24" fill="#ff4fa0"><path d="M12 3l9.5 8v3.2L12 6.3 2.5 14.2V11z"/><path d="M12 11.5l9.5 8V22L12 14.8 2.5 22v-2.5z" opacity=".85"/></svg><span id="bt">0</span></span><div class="bar"><span class="gem g2"></span><span id="bl">0</span><button class="plus" id="dep">+ Пополнить</button></div><div class="me" id="me"></div></div>
@@ -259,6 +288,7 @@ function stake(){var s=extra();S.inv.forEach(function(g){if(sel[g.id])s+=T[g.t].
 function chance(){if(want===null)return 0;return Math.min(95,stake()/T[want].v*100*EDGE)}
 function say(m,c){$("msg").textContent=m;$("msg").style.color=c||""}
 function render(){
+  if(API_URL&&want!==null&&T[want]&&T[want].nw&&stake()<=0){want=null;wantG=0}
   if(wantG&&!(S.si||[]).some(function(x){return x.id===wantG}))wantG=0;if(want!==null&&!avail(want)){want=null;wantG=0}
   if(want!==null&&stake()>0&&T[want].v<=stake()){want=null;say("Желаемый подарок должен быть дороже твоей ставки","var(--bad)")}
   var ch=chance(),ex=extra(),gs=S.inv.filter(function(g){return sel[g.id]});
@@ -286,7 +316,7 @@ function grid(){
   $("m1").className=tabM==1?"on":"";$("m2").className=tabM==2?"on":"";$("sb").style.display=tabM==1?"":"none";
   [1,2,3].forEach(function(k){$("u"+k).className=tabU==k?"on":""});var h="";
   $("tb").style.display=(tabM==1&&tabU==1)?"":"none";$("tn").textContent=S.inv.length;$("srt").classList.toggle("asc",!sortDesc);
-  if(tabM==2){if(API_URL){(S.si||[]).slice().sort(function(a,c){return T[c.t].v-T[a.t].v||a.no-c.no}).forEach(function(x){h+=card(x.t,"#"+x.no,wantG===x.id,'data-w="'+x.t+'" data-g="'+x.id+'" data-v="'+T[x.t].v+'"',gi(x))});wlist().filter(function(i){return T[i].nw}).forEach(function(i){h+=card(i,"обычный",want===i,'data-w="'+i+'" data-v="'+T[i].v+'"')})}else wlist().forEach(function(i){h+=card(i,T[i].nw?"обычный":"желаемый",want===i,'data-w="'+i+'" data-v="'+T[i].v+'"')});if(!h)h='<div class="empty" style="grid-column:1/-1">Пока здесь нет подарков. Они появятся, когда будут в наличии.</div>'}
+  if(tabM==2){if(API_URL){(S.si||[]).slice().sort(function(a,c){return T[c.t].v-T[a.t].v||a.no-c.no}).forEach(function(x){h+=card(x.t,"#"+x.no,wantG===x.id,'data-w="'+x.t+'" data-g="'+x.id+'" data-v="'+T[x.t].v+'"',gi(x))});var stk=stake();if(stk>0)wlist().filter(function(i){return T[i].nw&&T[i].v>stk}).forEach(function(i){h+=card(i,"обычный",want===i,'data-w="'+i+'" data-v="'+T[i].v+'"')})}else wlist().forEach(function(i){h+=card(i,T[i].nw?"обычный":"желаемый",want===i,'data-w="'+i+'" data-v="'+T[i].v+'"')});if(!h)h='<div class="empty" style="grid-column:1/-1">Пока здесь нет подарков. Они появятся, когда будут в наличии.</div>'}
   else if(tabU==1){var ql=qry.trim().toLowerCase(),list=S.inv.slice().sort(function(x,y){return sortDesc?T[y.t].v-T[x.t].v:T[x.t].v-T[y.t].v}).filter(function(g){return !ql||(T[g.t].n+" "+(KEYS[g.t]||"")).toLowerCase().indexOf(ql)>=0});
     list.forEach(function(g){h+=card(g.t,T[g.t].nw?"Обычный":"#"+g.no,sel[g.id],'data-i="'+g.id+'"',gi(g))});
     if(!S.inv.length){var gh="";[14,16,18,21,19,7].forEach(function(i){gh+=card(i,"",false,'tabindex="-1"')});h='<div class="ghostw"><div class="gg">'+gh+'</div><div class="ov"><div>Пустой инвентарь? Отправь подарки <a>@'+(S.owner||"владельцу")+'</a> и начинай буст.</div><button id="sendb">Отправить</button></div></div>'}
@@ -312,7 +342,7 @@ $("gr").onclick=function(e){
   if(b.dataset.i){var id=+b.dataset.i,was=sel[id];sel={};if(!was)sel[id]=true;grid();render()}
   else if(b.dataset.w){if(stake()>0&&T[+b.dataset.w].v<=stake()){say("Выбери подарок дороже своей ставки","var(--bad)");return}if(!avail(+b.dataset.w)){say("Этого подарка сейчас нет в наличии","var(--bad)");return}want=+b.dataset.w;wantG=+b.dataset.g||0;render();grid();window.scrollTo({top:0,behavior:"smooth"})}
   else if(b.dataset.b){if(API_URL){say("Магазин пока работает только в демо-режиме");return}var i=+b.dataset.b;if(S.bal>=T[i].v){S.bal-=T[i].v;var g=mk(i);S.inv.unshift(g);save();say("Куплено: "+T[i].n+" #"+g.no,"var(--ok)");render()}else say("Не хватает баланса — пополни его","var(--bad)")}};
-$("rg").oninput=function(){pcts=parseInt(this.value)||0;render()};
+$("rg").oninput=function(){pcts=parseInt(this.value)||0;render();if(tabM==2&&API_URL)grid()};
 function near(tv){var st=stake(),b=-1,bd=1e18,mx=0;T.forEach(function(t,i){if(!avail(i))return;if(t.v>T[mx].v)mx=i;if(t.v<=st)return;var d=Math.abs(t.v-tv);if(d<bd){bd=d;b=i}});return b<0?mx:b}
 $("chips").onclick=function(e){var b=e.target.closest(".chp");if(!b||busy)return;var st=stake();
   if(st<=0){say("Сначала добавь ставку: подарки или % баланса","var(--bad)");return}
@@ -506,7 +536,7 @@ function openBuy(i){
       else if(st==="cancelled")say("Покупка отменена");
       else say("Оплата не прошла","var(--bad)")})
   }).catch(function(){paying=false;say("Нет связи с сервером","var(--bad)")})}
-var ptab=1,pdesc=true;
+var ptab=1,pdesc=true,hpg=0;
 function dts(t){var d=new Date(t*1000),z=function(n){return (n<10?"0":"")+n};return z(d.getDate())+"."+z(d.getMonth()+1)+" "+z(d.getHours())+":"+z(d.getMinutes())}
 function renderProf(){var b=$("bgb");if(!b||!$("pbody"))return;var bg=S.bg,h="",i;
   b.innerHTML=bg&&T[bg.t]?'<div class="bgi"><img src="'+IM[bg.t]+'" alt=""></div><div class="bgm"><div><small>'+(T[bg.t].nw?"Обычный подарок":"NFT")+'</small><b>'+T[bg.t].n+'</b><small>'+(bg.no?"#"+bg.no:"")+'</small></div><span class="chn">'+f(bg.ch)+'%</span></div>':'<p class="note" style="margin:10px 0 0">Пока нет удачных бустов</p>';
@@ -515,11 +545,15 @@ function renderProf(){var b=$("bgb");if(!b||!$("pbody"))return;var bg=S.bg,h="",
     h='<div class="ptl"><button class="srt'+(pdesc?"":" asc")+'" id="psr" aria-label="Сортировка"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/></svg></button><div class="tt" style="height:44px">Всего подарков: '+inv.length+' <span class="gem g2" style="width:16px;height:16px"></span> '+f(tot)+'</div></div>';
     if(!inv.length)h+='<p class="note" style="margin:26px 0">Ваш инвентарь пуст.</p>';
     else{h+='<div class="pg">';inv.forEach(function(g){var x=T[g.t];h+='<div class="pi"><img src="'+gi(g)+'" alt=""><b>'+x.n+'</b><small>'+(g.no?"#"+g.no+" · ":"")+f(x.v)+' GRAM</small>'+(x.nw?'<button class="pw" data-wd="'+g.id+'" data-nw="1">Вывести</button>':'<button class="pw" data-wd="'+g.id+'">Вывести'+(API_URL?" · "+WITHDRAW_FEE:"")+'</button>')+'</div>'});h+='</div>'}}
-  else{var H=S.hist||[];if(!H.length)h='<p class="note" style="margin:26px 0">История пуста.</p>';
-    H.forEach(function(r){if(!T[r.t])return;h+='<div class="hr"><img src="'+IM[r.t]+'" alt=""><div class="hm"><b>'+T[r.t].n+(r.no?" #"+r.no:"")+'</b><small>'+dts(r.ts)+' · шанс '+f(r.ch)+'%</small></div><b class="'+(r.w?"ok":"no")+'">'+(r.w?"Успех":"Сгорело")+'</b></div>'})}
+  else{var H=(S.hist||[]).filter(function(r){return T[r.t]}),HP=9,np=Math.max(1,Math.ceil(H.length/HP));if(hpg>=np)hpg=np-1;if(hpg<0)hpg=0;
+    if(!H.length)h='<p class="note" style="margin:26px 0">История пуста.</p>';
+    else{h='<div class="hg">';H.slice(hpg*HP,hpg*HP+HP).forEach(function(r){var x=T[r.t],bd=x.nw?'<span class="pb"><span class="stp"></span>'+x.st+'</span>':'<span class="pb">'+gem()+f(x.v,x.v<10?2:(x.v<100?1:0))+'</span>',st=r.w===2?["o","Выведен"]:(r.w?["w","Выигран"]:["l","Проигран"]);
+      h+='<div class="hc" style="background-image:url('+gi(r)+')">'+bd+'<div class="hn"><b>'+x.n+'</b><small>'+(x.nw?"Обычный":"#"+(r.no||0))+'</small></div><div class="hs '+st[0]+'">'+st[1]+'</div></div>'});
+      h+='</div>';if(np>1)h+='<div class="hp"><button id="hpv"'+(hpg?'':' disabled')+'>‹</button><span>'+(hpg+1)+' из '+np+'</span><button id="hnx"'+(hpg<np-1?'':' disabled')+'>›</button></div>'}}
   $("pbody").innerHTML=h}
-document.addEventListener("click",function(e){var t=e.target.closest&&e.target.closest("#psr,[data-wd],#pt1,#pt2");if(!t)return;
-  if(t.id==="pt1"){ptab=1;renderProf();return}if(t.id==="pt2"){ptab=2;renderProf();return}if(t.id==="psr"){pdesc=!pdesc;renderProf();return}
+document.addEventListener("click",function(e){var t=e.target.closest&&e.target.closest("#psr,[data-wd],#pt1,#pt2,#hpv,#hnx");if(!t)return;
+  if(t.id==="hpv"){hpg--;renderProf();return}if(t.id==="hnx"){hpg++;renderProf();return}
+  if(t.id==="pt1"){ptab=1;renderProf();return}if(t.id==="pt2"){ptab=2;hpg=0;renderProf();return}if(t.id==="psr"){pdesc=!pdesc;renderProf();return}
   if(!API_URL){say("Вывод работает только на сервере","var(--bad)");return}
   var id=+t.dataset.wd,nw=!!t.dataset.nw,go=function(){t.disabled=true;api("/api/withdraw",{id:id}).then(function(r){if(r.ok){applyState(r.state);render();grid();say(nw?"🎁 Подарок отправлен вам в Telegram":"Заявка принята, списано "+WITHDRAW_FEE+" GRAM — подарок придёт в Telegram","var(--ok)")}else{t.disabled=false;say(r.error||"Ошибка","var(--bad)")}}).catch(function(){t.disabled=false;say("Нет связи с сервером","var(--bad)")})};
   if(tg&&tg.showConfirm)tg.showConfirm(nw?"Вывести подарок? Он придёт вам в Telegram бесплатно.":"Вывести подарок? Спишется "+WITHDRAW_FEE+" GRAM.",function(ok){if(ok)go()});else go()});
@@ -535,6 +569,6 @@ function loadPrices(){if(!PRICE_URL)return;fetch(PRICE_URL).then(function(r){ret
   var lo={};for(var n in d)lo[n.toLowerCase()]=d[n];
   T.forEach(function(t){var v=t.k&&lo[t.k.toLowerCase()];if(v>0){t.v=Math.round(v*100)/100;t.ok=1}});render()}).catch(function(){})}
 spReady=!API_URL;
-render();grid();loadPrices();setInterval(loadPrices,300000);
-if(API_URL){initTC();sync().then(function(){spReady=true;trySp()});setInterval(function(){if(!busy&&!$("win").classList.contains("show"))sync()},15000)}
+render();grid();loadPrices();setInterval(loadPrices,300000);if(!API_URL)ldDone();
+if(API_URL){initTC();sync().then(function(){spReady=true;trySp();ldDone()},ldDone);setInterval(function(){if(!busy&&!$("win").classList.contains("show"))sync()},15000)}
 </script></body></html>
