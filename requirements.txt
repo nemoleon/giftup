@@ -2,3 +2,4 @@ fastapi
 uvicorn
 httpx
 # TelegramGifts  # только для PRICE_SYNC=1
+telethon  # цены NFT по ценности из Telegram (необязательно)
