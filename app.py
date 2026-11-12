@@ -626,6 +626,30 @@ def api_import(x_admin_key: str = Header("")):
     try: return {"ok": True, "added": import_stock()}
     except Exception as e: return {"ok": False, "error": str(e)}
 
+@app.get("/api/admin/check")
+def api_check(x_admin_key: str = Header("")):
+    """Диагностика: подключён ли бот к аккаунту и какие права есть."""
+    if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
+    out = {}
+    try: me = tg("getMe"); out["bot"] = "@" + me.get("username", "?"); out["can_connect_to_business"] = me.get("can_connect_to_business")
+    except Exception as e: out["bot_error"] = str(e)
+    bc = meta_get("bc"); out["business_connection_id"] = bc or None; out["owner_id"] = meta_get("bc_owner")
+    if not bc:
+        out["verdict"] = "Бот НЕ подключён к аккаунту: Настройки Telegram → Бизнес → Чат-боты → выберите бота. Затем напишите любое сообщение на аккаунт."
+        return out
+    try:
+        c = tg("getBusinessConnection", business_connection_id=bc)
+        out["enabled"] = c.get("is_enabled"); out["rights"] = c.get("rights")
+    except Exception as e: out["connection_error"] = str(e)
+    for name, call in (("stars_balance", lambda: tg("getBusinessAccountStarBalance", business_connection_id=bc)),
+                       ("gifts", lambda: tg("getBusinessAccountGifts", business_connection_id=bc, limit=5))):
+        try:
+            r = call()
+            out[name] = r if name == "stars_balance" else {"total": r.get("total_count"), "sample": [((g.get("gift") or {}).get("base_name") or (g.get("gift") or {}).get("name"), (g.get("gift") or {}).get("number")) for g in r.get("gifts", [])]}
+        except Exception as e: out[name + "_error"] = str(e)
+    out["verdict"] = "OK: бот управляет аккаунтом" if not any(k.endswith("_error") for k in out) else "Есть ошибки (см. поля *_error): чаще всего не выданы права на подарки/звёзды или Telegram ограничил их для ботов"
+    return out
+
 def poll_loop():
     offset = 0
     while True:
