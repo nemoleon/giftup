@@ -374,17 +374,68 @@ def api_free(x_init_data: str = Header("")):
         raise
     finally: c.close()
 
+NW_EMOJI = {23: "💝", 24: "🧸", 25: "🎁", 26: "🌹", 27: "🎂", 28: "💐", 29: "🚀", 30: "🍾", 31: "🏆", 32: "💍", 33: "💎"}
+_gl = {"t": 0, "d": []}
+def tg_gift_id(t):
+    """id обычного подарка в Telegram для типа t каталога (по эмодзи и цене в звёздах)."""
+    if time.time() - _gl["t"] > 600 or not _gl["d"]:
+        _gl["d"] = tg("getAvailableGifts").get("gifts", []); _gl["t"] = time.time()
+    want, stars = NW_EMOJI.get(t), CAT[t].get("stars")
+    for g in _gl["d"]:
+        if g.get("star_count") == stars and (g.get("sticker") or {}).get("emoji") == want: return g["id"]
+    same = [g for g in _gl["d"] if g.get("star_count") == stars]
+    if len(same) == 1: return same[0]["id"]
+    print("нет подарка в Telegram:", t, want, stars, [(g.get("star_count"), (g.get("sticker") or {}).get("emoji")) for g in _gl["d"]], flush=True)
+    return None
+
+def withdraw_regular(uid, g):
+    """Обычный подарок: бесплатный вывод — бот сам отправляет его пользователю (sendGift, за звёзды бота)."""
+    c = db()
+    try:
+        c.execute("begin immediate")
+        cur = c.execute("update gifts set status='out' where id=? and owner=? and status='held'", (g["id"], uid))
+        c.execute("commit")
+    finally: c.close()
+    if not cur.rowcount: return {"ok": False, "error": "Подарок не найден"}
+    err = None
+    try:
+        gid = tg_gift_id(g["type"])
+        if not gid: err = "Этот подарок сейчас недоступен в Telegram"
+        else:
+            try: tg("sendGift", user_id=uid, gift_id=gid, text="Подарок из Gift Up Now")
+            except Exception as e1:
+                bc = meta_get("bc")
+                if "BALANCE" not in str(e1).upper() or not bc: raise
+                # на балансе бота не хватает звёзд — автоматически докидываем со звёзд бизнес-аккаунта владельца
+                need = int(CAT[g["type"]].get("stars") or 0)
+                tg("transferBusinessAccountStars", business_connection_id=bc, star_count=need)
+                print(f"[{stamp()}] ⭐ пополнен баланс бота со счёта аккаунта: {need}", flush=True)
+                tg("sendGift", user_id=uid, gift_id=gid, text="Подарок из Gift Up Now")
+    except Exception as e:
+        print("sendGift:", e, flush=True)
+        err = "Недостаточно звёзд для отправки, попробуйте позже" if "BALANCE" in str(e).upper() else "Не удалось отправить подарок, попробуйте позже"
+    c = db()
+    try:
+        if err:
+            c.execute("update gifts set status='held' where id=?", (g["id"],)); return {"ok": False, "error": err}
+        print(f"[{stamp()}] 📤 выдан обычный подарок «{CAT[g['type']]['name']}» → {uid}", flush=True)
+        c.execute("begin immediate"); st = state(c, uid); c.execute("commit")
+        return {"ok": True, "state": st}
+    finally: c.close()
+
 @app.post("/api/withdraw")
 def api_withdraw(body: dict, x_init_data: str = Header("")):
     usr = check_init(x_init_data); uid = usr["id"]
-    if not hit(f"wd:{uid}", 5, 3600): return {"ok": False, "error": "Лимит выводов: не больше 5 в час"}
+    if not hit(f"wd:{uid}", 20, 3600): return {"ok": False, "error": "Лимит выводов: не больше 20 в час"}
     c = db()
     try:
         c.execute("begin immediate")
         u = get_user(c, uid, usr.get("first_name", ""))
         g = c.execute("select * from gifts where id=? and owner=? and status='held'", (int(body.get("id", 0)), uid)).fetchone()
         if not g: return fail(c, "Подарок не найден")
-        if g["type"] >= 0 and CAT[g["type"]].get("nw"): return fail(c, "Обычные подарки вывести нельзя")
+        if g["type"] >= 0 and CAT[g["type"]].get("nw"):
+            c.execute("rollback")
+            c.close(); return withdraw_regular(uid, g)
         if u["bal"] + 1e-9 < WITHDRAW_FEE: return fail(c, f"Для вывода нужно {WITHDRAW_FEE} GRAM на балансе")
         c.execute("update users set bal=bal-? where id=?", (WITHDRAW_FEE, uid))
         c.execute("update gifts set status='out' where id=?", (g["id"],))
@@ -487,6 +538,39 @@ def on_start(m):
         tg("sendMessage", **p)
     except Exception as e: print("start:", e)
 
+def import_stock():
+    """Забирает NFT, которые уже лежат на аккаунте владельца, в «склад» (то, что пришло до подключения бота, событием не приходит)."""
+    bc = meta_get("bc")
+    if not bc: print("импорт склада: нет бизнес-подключения", flush=True); return 0
+    n_new = n_all = 0; off = ""
+    while True:
+        r = tg("getBusinessAccountGifts", business_connection_id=bc, exclude_unique=False, limit=100, **({"offset": off} if off else {}))
+        for og in r.get("gifts", []):
+            if og.get("type") != "unique": continue
+            g = og.get("gift", {}); ogid = og.get("owned_gift_id")
+            if not ogid: continue
+            n_all += 1
+            t = match(g.get("base_name"), (g.get("model") or {}).get("name"))
+            c = db()
+            try:
+                cur = c.execute("insert or ignore into gifts(type,number,ogid,owner,status) values(?,?,?,?,?)",
+                                (t, g.get("number"), ogid, None, "house" if t >= 0 else "unknown"))
+            finally: c.close()
+            if cur.rowcount:
+                n_new += 1
+                print(f"[{stamp()}] 📦 импорт на склад: {g.get('base_name')} #{g.get('number')} модель {(g.get('model') or {}).get('name')}"
+                      + ("" if t >= 0 else "  ⚠ НЕ РАСПОЗНАН (нет в catalog.json)"), flush=True)
+        off = r.get("next_offset") or ""
+        if not off: break
+    print(f"[{stamp()}] импорт склада: на аккаунте {n_all} NFT, добавлено {n_new}", flush=True)
+    return n_new
+
+@app.post("/api/admin/import")
+def api_import(x_admin_key: str = Header("")):
+    if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
+    try: return {"ok": True, "added": import_stock()}
+    except Exception as e: return {"ok": False, "error": str(e)}
+
 def poll_loop():
     offset = 0
     while True:
@@ -498,6 +582,8 @@ def poll_loop():
                     print(f"[{stamp()}] бизнес-подключение: user={bc['user']['id']} включено={bc.get('is_enabled')} права={bc.get('rights')}", flush=True)
                 if bc and bc.get("is_enabled"):
                     meta_set("bc", bc["id"]); meta_set("bc_owner", str(bc["user"]["id"]))
+                    try: import_stock()
+                    except Exception as e: print("импорт склада:", e, flush=True)
                 if u.get("business_message"): on_message(u["business_message"])
                 if u.get("pre_checkout_query"): on_pre_checkout(u["pre_checkout_query"])
                 if (u.get("message") or {}).get("successful_payment"): on_stars_paid(u["message"])
