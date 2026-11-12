@@ -84,13 +84,13 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 .lt p{font-size:17px;line-height:1.35;margin:14px 6px}.lt small{display:block;color:#888;font-size:13px;margin:8px 0 0}
 .lt .pay{width:100%;padding:17px;border-radius:26px;background:#3b8cff;color:#fff;font-weight:700;font-size:18px;margin-top:6px}
 .slots{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.slot{width:100%;background:var(--cd);border-radius:22px;min-height:150px;padding:10px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center;font-size:13px;color:var(--mut)}
-.slot.emp{background:radial-gradient(circle at 50% 38%,rgba(255,79,160,.22),transparent 62%),var(--cd)}
-.art{position:relative;width:104px;height:92px;flex:none;margin:0 0 8px}.art svg{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 0 14px rgba(255,79,160,.45))}
-.slot .art img{position:absolute;left:50%;top:46%;width:38px;height:38px;border-radius:50%;margin:-19px 0 0 -19px;object-fit:cover;box-shadow:0 0 0 2px #ff4fa0,0 0 18px rgba(255,79,160,.5)}
+.slot{width:100%;background:var(--cd);border-radius:30px;min-height:230px;padding:12px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center;font-size:13px;color:var(--mut)}
+.slot.emp{background:radial-gradient(circle at 50% 36%,rgba(255,79,160,.32),transparent 66%),var(--cd)}
+.art{position:relative;width:152px;height:134px;flex:none;margin:auto 0 14px}.art svg{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 0 14px rgba(255,79,160,.45))}
+.slot .art img{position:absolute;left:50%;top:46%;width:62px;height:62px;border-radius:50%;margin:-31px 0 0 -31px;object-fit:cover;box-shadow:0 0 0 2px #ff4fa0,0 0 18px rgba(255,79,160,.5)}
 .art.fl img{transform:rotate(180deg)}
 .slot img{width:84px;height:84px;border-radius:14px;object-fit:cover;margin-bottom:6px}
-.slot .t{background:var(--cd2);border-radius:14px;padding:8px;width:100%;color:var(--tx)}
+.slot .t{background:#150f14;border-radius:22px;padding:14px 10px;width:100%;color:var(--tx);font-size:15px;line-height:1.25}
 .stake{display:flex;align-items:center;gap:12px;margin:14px 2px}
 .stake input{flex:1;accent-color:var(--ac)}
 .go{width:100%;padding:16px;border-radius:18px;background:var(--ac);color:#000;font-weight:800;font-size:18px}.go:disabled{opacity:1;background:var(--cd);color:#4a4a52}
@@ -141,7 +141,7 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 <div id="sp"><svg viewBox="0 0 640 640" aria-hidden="true"><g id="spw"><circle cx="320" cy="320" r="175" fill="none" stroke="#601c40" stroke-width="80"/><circle id="spa" cx="320" cy="320" r="175" fill="none" stroke="#ff4fa0" stroke-width="80" stroke-dasharray="0 1100" transform="rotate(-20 320 320)"/></g><polygon id="spt" points="320,225 258,365 382,365" fill="#ff4fa0"/><circle id="spd" cx="320" cy="410" r="26" fill="#ff4fa0"/></svg><div id="spn"><span class="dg" id="spH" style="width:0"><div><span></span><span>1</span></div></span><span class="dg"><div id="spT"></div></span><span class="dg"><div id="spO"></div></span><span class="pc">%</span></div></div>
 <div id="vb">
  <div class="top"><span class="st" title="Онлайн сейчас"><svg viewBox="0 0 24 24" width="22" height="22" fill="#ff4fa0"><circle cx="8.5" cy="8" r="3.6"/><circle cx="16.5" cy="8.6" r="3"/><path d="M1.5 19c0-3.6 3-6 7-6s7 2.4 7 6z"/><path d="M16 13.4c3.6 0 6.5 2 6.5 5.1h-5.2c0-2-.6-3.6-1.9-5z" opacity=".8"/></svg><span id="bc">1</span></span><span class="st" title="Всего апгрейдов"><svg viewBox="0 0 24 24" width="24" height="24" fill="#ff4fa0"><path d="M12 3l9.5 8v3.2L12 6.3 2.5 14.2V11z"/><path d="M12 11.5l9.5 8V22L12 14.8 2.5 22v-2.5z" opacity=".85"/></svg><span id="bt">0</span></span><div class="bar"><span class="gem g2"></span><span id="bl">0</span><button class="plus" id="dep">+ Пополнить</button></div><div class="me" id="me"></div></div>
- <button class="free" id="fr">🎁 Бесплатный кейс <span style="float:right">›</span></button>
+ <button class="free" id="fr" style="display:none">🎁 Бесплатный кейс <span style="float:right">›</span></button>
  <div class="dial"><svg viewBox="-26 -16 252 232">
 <circle cx="100" cy="100" r="94" fill="none" stroke="#201219" stroke-width="2"/>
 <circle cx="100" cy="100" r="80" fill="none" stroke="#26141d" stroke-width="18"/>
