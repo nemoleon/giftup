@@ -26,6 +26,7 @@ DEPOSIT_ADDRESS = os.environ.get("DEPOSIT_ADDRESS", "")        # адрес ко
 TONCENTER_KEY = os.environ.get("TONCENTER_KEY", "")            # необязательно: ключ toncenter.com (снимает лимит 1 запрос/сек)
 MIN_DEPOSIT = float(os.environ.get("MIN_DEPOSIT", "0.1"))      # минимальное пополнение, GRAM
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")      # https://твой-домен (для манифеста TON Connect)
+WITHDRAW_REGULAR = os.environ.get("WITHDRAW_REGULAR") == "1"   # =1 — разрешить вывод обычных подарков за звёзды (за счёт звёзд бота)
 WITHDRAW_FEE = float(os.environ.get("WITHDRAW_FEE", "0.4"))   # цена вывода подарка, GRAM
 TRUST_PROXY = os.environ.get("TRUST_PROXY") == "1"              # =1, если сервер стоит за Caddy/nginx
 IP_LIMIT = int(os.environ.get("IP_LIMIT", "90"))                # запросов в минуту с одного IP
@@ -84,6 +85,8 @@ def init_db():
     create table if not exists custom(id integer primary key autoincrement, key text, model text, name text, price real);""")
     try: c.execute("alter table wd add column fee real default 0")   # для старых баз
     except Exception: pass
+    try: c.execute("alter table custom add column psrc integer default 0")   # 1 — цена подтверждена (вручную или по ценности Telegram)
+    except Exception: pass
     try: c.execute("alter table custom add column fixed integer default 0")   # цена задана вручную — автосинхронизация её не трогает
     except Exception: pass
     try: c.execute("alter table gifts add column img text default ''")   # картинка конкретного NFT
@@ -99,7 +102,7 @@ def load_custom():
     c = db()
     try:
         for r in c.execute("select * from custom order by id"):
-            CAT.append({"id": len(CAT), "key": r["key"], "model": r["model"] or "", "name": r["name"], "price": r["price"], "custom": r["id"], "fixed": bool(r["fixed"])})
+            CAT.append({"id": len(CAT), "key": r["key"], "model": r["model"] or "", "name": r["name"], "price": r["price"], "custom": r["id"], "fixed": bool(r["fixed"]), "priced": bool(r["psrc"] or r["fixed"])})
     finally: c.close()
 
 def ensure_type(base, model):
@@ -109,13 +112,16 @@ def ensure_type(base, model):
     with _cat_lock:
         for i, x in enumerate(CAT):
             if x.get("custom") and (x["key"] or "").lower() == base.lower() and (x.get("model") or "").lower() == model.lower(): return i
-        price = next((x["price"] for x in CAT if (x.get("key") or "").lower() == base.lower() and not x.get("nw")), DEFAULT_NFT_PRICE)
+        known = next((x["price"] for x in CAT if (x.get("key") or "").lower() == base.lower() and not x.get("nw")), None)
+        price = known if known is not None else DEFAULT_NFT_PRICE
         c = db()
         try: cid = c.execute("insert into custom(key,model,name,price) values(?,?,?,?)", (base, model, base, price)).lastrowid
         finally: c.close()
-        CAT.append({"id": len(CAT), "key": base, "model": model, "name": base, "price": price, "custom": cid})
+        CAT.append({"id": len(CAT), "key": base, "model": model, "name": base, "price": price, "custom": cid, "priced": known is not None})
         print(f"[{stamp()}] ➕ новый тип NFT: {base} / {model}, цена {price} GRAM (поменять: /api/admin/price)", flush=True)
         return len(CAT) - 1
+
+def is_priced(t): return t >= 0 and (not CAT[t].get("custom") or CAT[t].get("priced"))
 
 def nft_slug(base, number): return re.sub(r"[^A-Za-z0-9]", "", base or "") + "-" + str(number)
 
@@ -190,9 +196,9 @@ def auto_price(t, base, number):
     try:
         v = tg_value_ton(nft_slug(base, number))
         if v is None: return
-        with _cat_lock: x["price"] = v; x["vp"] = True
+        with _cat_lock: x["price"] = v; x["vp"] = True; x["priced"] = True
         c = db()
-        try: c.execute("update custom set price=? where id=? and fixed=0", (v, x["custom"]))
+        try: c.execute("update custom set price=?, psrc=1 where id=? and fixed=0", (v, x["custom"]))
         finally: c.close()
         print(f"[{stamp()}] 💰 цена {x['name']} / {x.get('model')} = {v} GRAM (по ценности Telegram)", flush=True)
     except Exception as e: print("auto_price:", base, number, e, flush=True)
@@ -255,7 +261,7 @@ def online_count():
 def state(c, uid):
     with _lock: _seen[uid] = time.time()
     u = c.execute("select * from users where id=?", (uid,)).fetchone()
-    inv = [{"id": r["id"], "t": r["type"], "no": r["number"], "im": r["img"] or ""} for r in
+    inv = [{"id": r["id"], "t": r["type"], "no": r["number"], "im": r["img"] or "", "pr": 1 if is_priced(r["type"]) else 0} for r in
            c.execute("select * from gifts where owner=? and status='held' and type>=0 order by id desc", (uid,))]
     stock = {r["type"]: r["n"] for r in c.execute(
         "select type, count(*) n from gifts where status='house' and type>=0 group by type")}
@@ -265,7 +271,7 @@ def state(c, uid):
             c.execute("select h.*, (select g.img from gifts g where g.type=h.want and g.number=h.no and h.no>0 order by g.id desc limit 1) as img "
                       "from hist h where h.user=? order by h.id desc limit 150", (uid,))]
     bg = c.execute("select want t, no, ch from hist where user=? and win=1 order by price desc, id desc limit 1", (uid,)).fetchone()
-    return {"custom": [{"t": i, "n": x["name"], "v": x["price"], "m": x.get("model", "")} for i, x in enumerate(CAT) if x.get("custom")],
+    return {"nwwd": WITHDRAW_REGULAR, "custom": [{"t": i, "n": x["name"], "v": x["price"], "m": x.get("model", "")} for i, x in enumerate(CAT) if x.get("custom")],
             "stock_items": si, "hist": hist, "bg": dict(bg) if bg else None,
             "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
             "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "spg": STARS_PER_GRAM, "smin": STARS_MIN, "online": online_count(), "owner": owner_username(),
@@ -486,6 +492,7 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         u = get_user(c, uid, usr.get("first_name", ""))
         gifts = [c.execute("select * from gifts where id=? and owner=? and status='held'", (i, uid)).fetchone() for i in ids]
         if any(g is None or g["type"] < 0 for g in gifts): return fail(c, "Подарок не найден в инвентаре")
+        if any(not is_priced(g["type"]) for g in gifts): return fail(c, "Этот NFT ещё оценивается, попробуйте позже")
         if extra > u["bal"] + 1e-9: return fail(c, "Не хватает баланса")
         stake = extra + sum(CAT[g["type"]]["price"] for g in gifts)
         price = CAT[want]["price"]
@@ -608,6 +615,36 @@ def withdraw_regular(uid, g):
         return {"ok": True, "state": st}
     finally: c.close()
 
+@app.post("/api/sell")
+def api_sell(body: dict, x_init_data: str = Header("")):
+    """Продать подарки за GRAM по их цене: {"ids":[..]} или {"all":true}."""
+    usr = check_init(x_init_data); uid = usr["id"]
+    if not hit(f"sell:{uid}", 20, 60): return {"ok": False, "error": "Слишком часто, подожди немного"}
+    c = db()
+    try:
+        c.execute("begin immediate")
+        get_user(c, uid, usr.get("first_name", ""))
+        rows = c.execute("select * from gifts where owner=? and status='held' and type>=0", (uid,)).fetchall()
+        if not body.get("all"):
+            ids = {int(i) for i in body.get("ids", [])}
+            rows = [g for g in rows if g["id"] in ids]
+        rows = [g for g in rows if is_priced(g["type"])]
+        if not rows: return fail(c, "Нечего продавать: подарки ещё оцениваются или не найдены")
+        total = 0.0
+        for g in rows:
+            total += CAT[g["type"]]["price"]
+            c.execute("update gifts set owner=null, status=? where id=?", ("gone" if CAT[g["type"]].get("nw") else "house", g["id"]))
+        total = round(total, 4)
+        c.execute("update users set bal=bal+? where id=?", (total, uid))
+        st = state(c, uid); c.execute("commit")
+        print(f"[{stamp()}] 💱 продано {len(rows)} шт. за {total} GRAM → {uid}", flush=True)
+        return {"ok": True, "sold": len(rows), "amount": total, "state": st}
+    except Exception:
+        try: c.execute("rollback")
+        except Exception: pass
+        raise
+    finally: c.close()
+
 @app.post("/api/withdraw")
 def api_withdraw(body: dict, x_init_data: str = Header("")):
     usr = check_init(x_init_data); uid = usr["id"]
@@ -618,6 +655,9 @@ def api_withdraw(body: dict, x_init_data: str = Header("")):
         u = get_user(c, uid, usr.get("first_name", ""))
         g = c.execute("select * from gifts where id=? and owner=? and status='held'", (int(body.get("id", 0)), uid)).fetchone()
         if not g: return fail(c, "Подарок не найден")
+        if g["type"] >= 0 and CAT[g["type"]].get("nw") and not WITHDRAW_REGULAR:
+            return fail(c, "Подарки за звёзды нельзя вывести: на них можно только играть в апгрейде.")
+        if g["type"] >= 0 and not is_priced(g["type"]): return fail(c, "Этот NFT ещё оценивается, попробуйте позже")
         if g["type"] >= 0 and CAT[g["type"]].get("nw"):
             c.execute("rollback")
             c.close(); return withdraw_regular(uid, g)
@@ -718,7 +758,9 @@ def on_message(m):
         print(f"[{stamp()}] ↳ ЗАЧИСЛЕН: {nm} #{g.get('number')} → {'в склад (хозяин)' if house else 'в инвентарь ' + str(sender)}"
               + ("" if t >= 0 else "  ⚠ НЕ РАСПОЗНАН (нет в catalog.json)"), flush=True)
         if t < 0: reply_in_chat(m, f"⚠️ Ваш NFT «{nm}» #{g.get('number')} получен, но пока не распознан. Напишите в поддержку.")
-        elif not house: reply_in_chat(m, f"✅ Ваш NFT «{nm}» #{g.get('number')} зачислен в ваш инвентарь GiftUp. Откройте приложение, чтобы улучшить его.")
+        elif not house:
+            if is_priced(t): reply_in_chat(m, f"✅ Ваш NFT «{nm}» #{g.get('number')} зачислен в ваш инвентарь GiftUp. Откройте приложение, чтобы улучшить его.")
+            else: reply_in_chat(m, f"✅ Ваш NFT «{nm}» #{g.get('number')} зачислен в ваш инвентарь GiftUp. Сейчас он на оценке: как только цена будет определена, его можно будет использовать в приложении.")
 
 def on_start(m):
     fr = m.get("from") or {}
@@ -789,7 +831,7 @@ def api_price(body: dict, x_admin_key: str = Header("")):
         for i, x in enumerate(CAT):
             if not x.get("custom"): continue
             if ("id" in body and int(body["id"]) == i) or (body.get("name") and _norm(x["key"]) == _norm(body["name"])):
-                x["price"] = price; x["fixed"] = True; done.append(i)
+                x["price"] = price; x["fixed"] = True; x["priced"] = True; done.append(i)
                 c = db()
                 try: c.execute("update custom set price=?, fixed=1 where id=?", (price, x["custom"]))
                 finally: c.close()
