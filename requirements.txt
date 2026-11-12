@@ -1,0 +1,4 @@
+fastapi
+uvicorn
+httpx
+# TelegramGifts  # только для PRICE_SYNC=1
