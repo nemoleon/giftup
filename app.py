@@ -80,10 +80,80 @@ def init_db():
     create table if not exists star_pay(charge text primary key, user integer, type integer, stars integer, ok integer default 1);
     create table if not exists deposits(hash text primary key, user integer, amount real, comment text, src text, credited integer default 0);
     create table if not exists hist(id integer primary key autoincrement, user integer, ts integer, want integer, no integer, win integer, ch real, price real);
-    create table if not exists meta(k text primary key, v text);""")
+    create table if not exists meta(k text primary key, v text);
+    create table if not exists custom(id integer primary key autoincrement, key text, model text, name text, price real);""")
     try: c.execute("alter table wd add column fee real default 0")   # для старых баз
     except Exception: pass
+    try: c.execute("alter table gifts add column img text default ''")   # картинка конкретного NFT
+    except Exception: pass
     c.close()
+
+# ---------- NFT, которых нет в каталоге: заводятся автоматически (название, цена, картинка) ----------
+DEFAULT_NFT_PRICE = float(os.environ.get("DEFAULT_NFT_PRICE", "100"))    # цена нового NFT, если такого названия ещё не было (потом поменять: /api/admin/price)
+IMG_DIR = os.path.join(HERE, "nftimg"); os.makedirs(IMG_DIR, exist_ok=True)
+_cat_lock = threading.Lock()
+
+def load_custom():
+    c = db()
+    try:
+        for r in c.execute("select * from custom order by id"):
+            CAT.append({"id": len(CAT), "key": r["key"], "model": r["model"] or "", "name": r["name"], "price": r["price"], "custom": r["id"]})
+    finally: c.close()
+
+def ensure_type(base, model):
+    """Находит или создаёт тип для NFT, которого нет в каталоге. Возвращает индекс в CAT."""
+    base = (base or "").strip(); model = (model or "").strip()
+    if not base: return -1
+    with _cat_lock:
+        for i, x in enumerate(CAT):
+            if x.get("custom") and (x["key"] or "").lower() == base.lower() and (x.get("model") or "").lower() == model.lower(): return i
+        price = next((x["price"] for x in CAT if (x.get("key") or "").lower() == base.lower() and not x.get("nw")), DEFAULT_NFT_PRICE)
+        c = db()
+        try: cid = c.execute("insert into custom(key,model,name,price) values(?,?,?,?)", (base, model, base, price)).lastrowid
+        finally: c.close()
+        CAT.append({"id": len(CAT), "key": base, "model": model, "name": base, "price": price, "custom": cid})
+        print(f"[{stamp()}] ➕ новый тип NFT: {base} / {model}, цена {price} GRAM (поменять: /api/admin/price)", flush=True)
+        return len(CAT) - 1
+
+def nft_slug(base, number): return re.sub(r"[^A-Za-z0-9]", "", base or "") + "-" + str(number)
+
+def save_nft_image(slug):
+    """Скачивает картинку конкретного NFT и кладёт к себе на сервер. Возвращает путь вида /nftimg/<файл> или ''."""
+    fn = re.sub(r"[^A-Za-z0-9_-]", "", slug) + ".jpg"
+    path = os.path.join(IMG_DIR, fn)
+    if os.path.exists(path) and os.path.getsize(path) > 500: return "/nftimg/" + fn
+    urls = [f"https://nft.fragment.com/gift/{slug.lower()}.medium.jpg"]
+    try:
+        h = httpx.get(f"https://t.me/nft/{slug}", follow_redirects=True, timeout=12, headers={"User-Agent": "Mozilla/5.0"}).text
+        m = re.search(r'<meta[^>]+property="og:image"[^>]+content="([^"]*)"', h) or re.search(r'<meta[^>]+content="([^"]*)"[^>]+property="og:image"', h)
+        if m:
+            u = html.unescape(m.group(1)); host = re.sub(r"^https?://([^/]+).*", r"\1", u)
+            if u.startswith("https://") and any(host == d or host.endswith("." + d) for d in _IMG_OK): urls.append(u)
+    except Exception as e: print("nft page:", e, flush=True)
+    for u in urls:
+        try:
+            r = httpx.get(u, follow_redirects=True, timeout=15)
+            if r.status_code == 200 and 500 < len(r.content) < 2_000_000 and r.headers.get("content-type", "").startswith("image"):
+                open(path, "wb").write(r.content); return "/nftimg/" + fn
+        except Exception as e: print("nft img:", u, e, flush=True)
+    return ""
+
+def attach_image(ogid, base, number):
+    try:
+        p = save_nft_image(nft_slug(base, number))
+        if p:
+            c = db()
+            try: c.execute("update gifts set img=? where ogid=?", (p, ogid))
+            finally: c.close()
+        else: print(f"[{stamp()}] картинка для {base} #{number} не найдена", flush=True)
+    except Exception as e: print("attach_image:", e, flush=True)
+
+@app.get("/nftimg/{fn}")
+def nft_img(fn: str):
+    fn = re.sub(r"[^A-Za-z0-9_.-]", "", fn)
+    p = os.path.join(IMG_DIR, fn)
+    if not fn.endswith(".jpg") or not os.path.exists(p): raise HTTPException(404)
+    return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 def meta_get(k):
     c = db(); r = c.execute("select v from meta where k=?", (k,)).fetchone(); c.close()
@@ -125,16 +195,17 @@ def online_count():
 def state(c, uid):
     with _lock: _seen[uid] = time.time()
     u = c.execute("select * from users where id=?", (uid,)).fetchone()
-    inv = [{"id": r["id"], "t": r["type"], "no": r["number"]} for r in
+    inv = [{"id": r["id"], "t": r["type"], "no": r["number"], "im": r["img"] or ""} for r in
            c.execute("select * from gifts where owner=? and status='held' and type>=0 order by id desc", (uid,))]
     stock = {r["type"]: r["n"] for r in c.execute(
         "select type, count(*) n from gifts where status='house' and type>=0 group by type")}
-    si = [{"id": r["id"], "t": r["type"], "no": r["number"]} for r in
-          c.execute("select id,type,number from gifts where status='house' and type>=0 order by id desc limit 300")]
+    si = [{"id": r["id"], "t": r["type"], "no": r["number"], "im": r["img"] or ""} for r in
+          c.execute("select id,type,number,img from gifts where status='house' and type>=0 order by id desc limit 300")]
     hist = [{"t": r["want"], "no": r["no"], "w": r["win"], "ch": r["ch"], "ts": r["ts"]} for r in
             c.execute("select * from hist where user=? order by id desc limit 40", (uid,))]
     bg = c.execute("select want t, no, ch from hist where user=? and win=1 order by price desc, id desc limit 1", (uid,)).fetchone()
-    return {"stock_items": si, "hist": hist, "bg": dict(bg) if bg else None,
+    return {"custom": [{"t": i, "n": x["name"], "v": x["price"], "m": x.get("model", "")} for i, x in enumerate(CAT) if x.get("custom")],
+            "stock_items": si, "hist": hist, "bg": dict(bg) if bg else None,
             "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
             "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "spg": STARS_PER_GRAM, "smin": STARS_MIN, "online": online_count(), "owner": owner_username(),
             "total": c.execute("select coalesce(sum(boosts),0) from users").fetchone()[0]}
@@ -383,7 +454,7 @@ def api_boost(body: dict, x_init_data: str = Header("")):
                 gift = {"id": cur.lastrowid, "t": want, "no": 0}
             else:
                 c.execute("update gifts set owner=?, status='held' where id=?", (uid, target["id"]))
-                gift = {"id": target["id"], "t": want, "no": target["number"]}
+                gift = {"id": target["id"], "t": want, "no": target["number"], "im": target["img"] or ""}
             c.execute("update users set best=max(best,?) where id=?", (price, uid))
         c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,?,?,?)",
                   (uid, int(time.time()), want, (gift or {}).get("no", 0), 1 if win else 0, ch, price))
@@ -561,6 +632,7 @@ def on_message(m):
           f"owned_gift_id={ogid}, origin={ug.get('origin')}", flush=True)
     if not ogid: print("нет owned_gift_id", ug, flush=True); return
     t = match(g.get("base_name"), (g.get("model") or {}).get("name"))
+    if t < 0: t = ensure_type(g.get("base_name"), (g.get("model") or {}).get("name"))
     house = sender in HOUSE_IDS
     status = "unknown" if t < 0 else ("house" if house else "held")
     c = db()
@@ -571,6 +643,7 @@ def on_message(m):
     finally: c.close()
     if not cur.rowcount:
         print(f"[{stamp()}] ↳ уже учтён ранее (повтор), пропуск", flush=True)
+    threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number")), daemon=True).start()
     if cur.rowcount:
         nm = CAT[t]["name"] if t >= 0 else g.get("base_name", "подарок")
         print(f"[{stamp()}] ↳ ЗАЧИСЛЕН: {nm} #{g.get('number')} → {'в склад (хозяин)' if house else 'в инвентарь ' + str(sender)}"
@@ -606,11 +679,17 @@ def import_stock():
             if not ogid: continue
             n_all += 1
             t = match(g.get("base_name"), (g.get("model") or {}).get("name"))
+            if t < 0: t = ensure_type(g.get("base_name"), (g.get("model") or {}).get("name"))
             c = db()
             try:
                 cur = c.execute("insert or ignore into gifts(type,number,ogid,owner,status) values(?,?,?,?,?)",
                                 (t, g.get("number"), ogid, None, "house" if t >= 0 else "unknown"))
+                row = c.execute("select * from gifts where ogid=?", (ogid,)).fetchone()
+                if row and row["type"] < 0 and t >= 0 and row["status"] == "unknown":     # раньше не распознавался — чиним
+                    c.execute("update gifts set type=?, status='house', owner=null where id=?", (t, row["id"]))
+                need_img = bool(row) and not row["img"]
             finally: c.close()
+            if need_img: threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number")), daemon=True).start()
             if cur.rowcount:
                 n_new += 1
                 print(f"[{stamp()}] 📦 импорт на склад: {g.get('base_name')} #{g.get('number')} модель {(g.get('model') or {}).get('name')}"
@@ -623,8 +702,28 @@ def import_stock():
 @app.post("/api/admin/import")
 def api_import(x_admin_key: str = Header("")):
     if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
-    try: return {"ok": True, "added": import_stock()}
+    try:
+        n = import_stock()
+        return {"ok": True, "added": n, "custom_types": [{"id": i, "name": x["name"], "model": x.get("model"), "price": x["price"]} for i, x in enumerate(CAT) if x.get("custom")]}
     except Exception as e: return {"ok": False, "error": str(e)}
+
+@app.post("/api/admin/price")
+def api_price(body: dict, x_admin_key: str = Header("")):
+    """Поставить цену автоматически добавленному NFT: {"name": "Plush Pepe", "price": 1500} (для всех моделей) или {"id": 43, "price": 900}."""
+    if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
+    try: price = float(body.get("price"))
+    except Exception: return {"ok": False, "error": "нужна цена"}
+    if price <= 0: return {"ok": False, "error": "цена должна быть больше 0"}
+    done = []
+    with _cat_lock:
+        for i, x in enumerate(CAT):
+            if not x.get("custom"): continue
+            if ("id" in body and int(body["id"]) == i) or (body.get("name") and _norm(x["key"]) == _norm(body["name"])):
+                x["price"] = price; done.append(i)
+                c = db()
+                try: c.execute("update custom set price=? where id=?", (price, x["custom"]))
+                finally: c.close()
+    return {"ok": bool(done), "updated": done}
 
 @app.get("/api/admin/check")
 def api_check(x_admin_key: str = Header("")):
@@ -828,7 +927,7 @@ def price_loop():   # необязательно: PRICE_SYNC=1 и pip install Te
 
 @app.on_event("startup")
 def startup():
-    init_db()
+    init_db(); load_custom()
     threading.Thread(target=poll_loop, daemon=True).start()
     threading.Thread(target=withdraw_loop, daemon=True).start()
     threading.Thread(target=deposit_loop, daemon=True).start()
