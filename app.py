@@ -98,6 +98,19 @@ def get_user(c, uid, name=""):
 
 def sha(s): return hashlib.sha256(s.encode()).hexdigest()
 
+_own = {"t": 0, "u": ""}
+def owner_username():
+    """@username владельца (куда ведёт кнопка «Отправить»): из OWNER_USERNAME или через getChat по HOUSE_IDS / бизнес-аккаунту."""
+    env = os.environ.get("OWNER_USERNAME", "").lstrip("@")
+    if env: return env
+    if time.time() - _own["t"] < 3600: return _own["u"]
+    _own["t"] = time.time()
+    oid = next(iter(sorted(HOUSE_IDS)), None) or meta_get("bc_owner")
+    if oid:
+        try: _own["u"] = tg("getChat", chat_id=int(oid)).get("username", "") or ""
+        except Exception as e: print("owner:", e)
+    return _own["u"]
+
 _seen = {}
 def online_count():
     """Сколько человек открыли приложение за последние 45 секунд."""
@@ -114,7 +127,7 @@ def state(c, uid):
     stock = {r["type"]: r["n"] for r in c.execute(
         "select type, count(*) n from gifts where status='house' and type>=0 group by type")}
     return {"bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
-            "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "online": online_count(),
+            "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "online": online_count(), "owner": owner_username(),
             "total": c.execute("select coalesce(sum(boosts),0) from users").fetchone()[0]}
 
 # ---------- вход через Telegram (проверка initData) ----------
@@ -183,9 +196,9 @@ def api_avatar(x_init_data: str = Header("")):
     c = _av.get(uid)
     if c and time.time() - c[0] < 3600: return Response(c[1], media_type="image/jpeg")
     try:
-        ph = tg("getUserProfilePhotos", user_id=uid, limit=1)["result"]["photos"]
+        ph = tg("getUserProfilePhotos", user_id=uid, limit=1)["photos"]
         fid = ph[0][-1 if len(ph[0]) < 2 else 1]["file_id"]
-        path = tg("getFile", file_id=fid)["result"]["file_path"]
+        path = tg("getFile", file_id=fid)["file_path"]
         data = httpx.get(f"https://api.telegram.org/file/bot{TOKEN}/{path}", timeout=20).content
     except Exception:
         raise HTTPException(404, "no photo")
@@ -202,6 +215,28 @@ def api_deposit(x_init_data: str = Header("")):
     finally: c.close()
     return {"ok": True, "address": DEPOSIT_ADDRESS, "comment": f"gu{usr['id']}", "min": MIN_DEPOSIT}
 
+_imgs = None
+def gift_image(t):
+    """Картинка подарка из index.html (массив IM). Возвращает (байты, тип) или None (SVG Telegram не принимает)."""
+    global _imgs
+    if _imgs is None:
+        try:
+            html = open(os.path.join(HERE, "index.html"), encoding="utf-8").read()
+            _imgs = json.loads(re.search(r"var IM=(\[.*?\]);", html, re.S).group(1))
+        except Exception as e:
+            print("картинки:", e); _imgs = []
+    if not 0 <= t < len(_imgs): return None
+    m = re.match(r"data:(image/(?:jpeg|png));base64,(.*)", _imgs[t], re.S)
+    if not m: return None
+    import base64
+    return base64.b64decode(m.group(2)), m.group(1)
+
+@app.get("/gift/{t}.jpg")
+def gift_pic(t: int):
+    r = gift_image(t)
+    if not r: raise HTTPException(404, "no")
+    return Response(r[0], media_type=r[1], headers={"Cache-Control": "public, max-age=86400"})
+
 @app.post("/api/stars/buy")
 def api_stars_buy(body: dict, x_init_data: str = Header("")):
     """Создаёт счёт в Telegram Stars (XTR). Оплату подтверждает сам Telegram, подарок выдаётся после successful_payment."""
@@ -216,9 +251,11 @@ def api_stars_buy(body: dict, x_init_data: str = Header("")):
     try: get_user(c, uid, usr.get("first_name", ""))
     finally: c.close()
     try:
+        kw = {}
+        if PUBLIC_URL and gift_image(t): kw["photo_url"] = f"{PUBLIC_URL}/gift/{t}.jpg"      # картинка подарка в окне оплаты
         link = tg("createInvoiceLink", title=x["name"][:32], description=("Подарок в инвентарь GiftUp: " + x["name"])[:255],
                   payload=f"gu:{uid}:{t}:{secrets.token_hex(4)}", currency="XTR",
-                  prices=[{"label": x["name"][:32], "amount": int(x["stars"])}])
+                  prices=[{"label": x["name"][:32], "amount": int(x["stars"])}], **kw)
     except Exception as e:
         print("invoice:", e); return {"ok": False, "error": "Не удалось создать счёт, попробуй позже"}
     return {"ok": True, "link": link}
