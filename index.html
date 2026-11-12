@@ -365,13 +365,15 @@ document.addEventListener("click",function(e){var t=e.target.closest&&e.target.c
   else if(m==="gifts")dmGifts()
   else if(m==="gram")dmGramMenu()});
 var dga="",DGEM='<span class="gem" style="width:20px;height:20px;background-color:#8d7d88"></span>';
-function dgShow(){var e=$("dga");e.textContent=dga||"0.00";e.style.color=dga?"#fff":"#6b6068";$("dgb").disabled=!(parseFloat(dga)>=(dinfo?dinfo.min:0.1));if($("dgbal"))$("dgbal").textContent=f(S.bal)}
-function dmGram(){api("/api/deposit",{}).then(function(d){
-  if(!d.ok){say(d.error,"var(--bad)");return}
-  dinfo=d;dmv="gram";dga="";
+function dgShow(){var e=$("dga");e.textContent=dga||"0.00";e.style.color=dga?"#fff":"#6b6068";$("dgb").disabled=!(dinfo&&parseFloat(dga)>=dinfo.min);if($("dgbal"))$("dgbal").textContent=f(S.bal)}
+function dmGram(){dmv="gram";dga="";dinfo=null;
   $("dmh").innerHTML='<button class="dr" id="dmback2">‹</button><div style="flex:1;display:flex;justify-content:center"><button class="wlp" id="dgw"></button></div><button class="dr" id="dmx">✕</button>';
-  $("dmb").innerHTML='<div class="dga" id="dga">0.00</div><div class="dpr"><button data-g="5">5 <span class="gem" style="width:18px;height:18px"></span></button><button data-g="10">10 <span class="gem" style="width:18px;height:18px"></span></button><button data-g="50">50 <span class="gem" style="width:18px;height:18px"></span></button><button data-g="100">100 <span class="gem" style="width:18px;height:18px"></span></button></div><div class="dbal"><span class="gem"></span><div><b id="dgbal" style="font-size:20px">0.00</b><div style="color:#8d7d88;font-size:15px">Ваш баланс</div></div></div><div class="kp">'+["1","2","3","4","5","6","7","8","9",".","0","⌫"].map(function(k){return '<button data-k="'+k+'">'+k+'</button>'}).join("")+'</div><p class="note" style="margin:0 0 10px">Минимум '+d.min+' GRAM · перевод идёт с вашего кошелька TON</p><button class="dbuy" id="dgb" disabled>Пополнить</button>';
-  wlRender();dgShow()}).catch(function(){say("Нет связи с сервером","var(--bad)")})}
+  $("dmb").innerHTML='<div class="dga" id="dga">0.00</div><div class="dpr"><button data-g="5">5 <span class="gem" style="width:18px;height:18px"></span></button><button data-g="10">10 <span class="gem" style="width:18px;height:18px"></span></button><button data-g="50">50 <span class="gem" style="width:18px;height:18px"></span></button><button data-g="100">100 <span class="gem" style="width:18px;height:18px"></span></button></div><div class="dbal"><span class="gem"></span><div><b id="dgbal" style="font-size:20px">0.00</b><div style="color:#8d7d88;font-size:15px">Ваш баланс</div></div></div><div class="kp">'+["1","2","3","4","5","6","7","8","9",".","0","⌫"].map(function(k){return '<button data-k="'+k+'">'+k+'</button>'}).join("")+'</div><p class="note" id="dgn" style="margin:0 0 10px">Загрузка…</p><button class="dbuy" id="dgb" disabled>Пополнить</button>';
+  wlRender();dgShow();
+  api("/api/deposit",{}).then(function(d){
+    if(!d.ok){var n=$("dgn");if(n){n.style.color="#ff5470";n.textContent=(d.error||"Пополнение недоступно")+(d.error&&d.error.indexOf("не настроено")>=0?" — владельцу нужно задать DEPOSIT_ADDRESS на сервере":"")}return}
+    dinfo=d;var n=$("dgn");if(n)n.textContent="Минимум "+d.min+" GRAM · перевод идёт с вашего кошелька TON";dgShow()
+  }).catch(function(){var n=$("dgn");if(n){n.style.color="#ff5470";n.textContent="Нет связи с сервером"}})}
 function dgKey(k){if(k==="⌫"){dga=dga.slice(0,-1)}else if(k==="."){if(dga.indexOf(".")<0)dga=(dga||"0")+"."}else{if(dga==="0")dga="";var p=dga.split(".");if(p[1]!==undefined&&p[1].length>=4)return;if(dga.length>=9)return;dga+=k}dgShow()}
 document.addEventListener("click",function(e){var t=e.target.closest&&e.target.closest("#dm button");if(!t||dmv!=="gram")return;
   if(t.id==="dmback2"){dmMenu();return}
