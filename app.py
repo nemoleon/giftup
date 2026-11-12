@@ -84,6 +84,8 @@ def init_db():
     create table if not exists custom(id integer primary key autoincrement, key text, model text, name text, price real);""")
     try: c.execute("alter table wd add column fee real default 0")   # для старых баз
     except Exception: pass
+    try: c.execute("alter table custom add column fixed integer default 0")   # цена задана вручную — автосинхронизация её не трогает
+    except Exception: pass
     try: c.execute("alter table gifts add column img text default ''")   # картинка конкретного NFT
     except Exception: pass
     c.close()
@@ -97,7 +99,7 @@ def load_custom():
     c = db()
     try:
         for r in c.execute("select * from custom order by id"):
-            CAT.append({"id": len(CAT), "key": r["key"], "model": r["model"] or "", "name": r["name"], "price": r["price"], "custom": r["id"]})
+            CAT.append({"id": len(CAT), "key": r["key"], "model": r["model"] or "", "name": r["name"], "price": r["price"], "custom": r["id"], "fixed": bool(r["fixed"])})
     finally: c.close()
 
 def ensure_type(base, model):
@@ -719,9 +721,9 @@ def api_price(body: dict, x_admin_key: str = Header("")):
         for i, x in enumerate(CAT):
             if not x.get("custom"): continue
             if ("id" in body and int(body["id"]) == i) or (body.get("name") and _norm(x["key"]) == _norm(body["name"])):
-                x["price"] = price; done.append(i)
+                x["price"] = price; x["fixed"] = True; done.append(i)
                 c = db()
-                try: c.execute("update custom set price=? where id=?", (price, x["custom"]))
+                try: c.execute("update custom set price=?, fixed=1 where id=?", (price, x["custom"]))
                 finally: c.close()
     return {"ok": bool(done), "updated": done}
 
@@ -917,11 +919,16 @@ def price_loop():   # необязательно: PRICE_SYNC=1 и pip install Te
     api = TelegramGifts()
     while True:
         for x in CAT:
-            if not x["key"]: continue
+            if not x["key"] or x.get("fixed"): continue
             try:
                 info = api.get_gift(x["key"])
                 v = [p for k, p in (info.get("prices") or {}).items() if k.endswith("_price_ton") and isinstance(p, (int, float)) and p > 0]
-                if v: x["price"] = round(sum(v) / len(v), 2)
+                if v:
+                    x["price"] = round(sum(v) / len(v), 2)
+                    if x.get("custom"):
+                        c = db()
+                        try: c.execute("update custom set price=? where id=? and fixed=0", (x["price"], x["custom"]))
+                        finally: c.close()
             except Exception as e: print("price:", x["key"], e)
         time.sleep(300)
 
