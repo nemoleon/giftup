@@ -191,11 +191,41 @@ def tg_value_ton(slug):
     print(f"[{stamp()}] ценность {slug}: {v} {cur} → {ton:.2f} TON", flush=True)
     return round(ton, 2) if ton > 0 else None
 
+def tg_floor_ton(slug):
+    """Самая низкая цена этого NFT (той же модели) на маркете внутри Telegram, в TON. None, если лотов нет или не вышло."""
+    if not _ub["cl"]: return None
+    import asyncio
+    from telethon.tl.functions.payments import GetUniqueStarGiftRequest, GetResaleStarGiftsRequest
+    cl, loop = _ub["cl"], _ub["loop"]
+    run = lambda coro: asyncio.run_coroutine_threadsafe(coro, loop).result(30)
+    u = run(cl(GetUniqueStarGiftRequest(slug=slug))).gift
+    def listings(**kw):
+        r = run(cl(GetResaleStarGiftsRequest(gift_id=u.gift_id, offset="", limit=10, sort_by_price=True, **kw)))
+        out = []
+        for g in r.gifts:
+            for a in (getattr(g, "resell_amount", None) or []):
+                if "Ton" in type(a).__name__: out.append(a.amount / 1e9)
+                else: out.append((a.amount + getattr(a, "nanos", 0) / 1e9) * 0.013 / ton_rate("usd"))   # звёзды → TON через ~0.013 $ за звезду
+        return out
+    prices = []
+    try:
+        from telethon.tl.types import StarGiftAttributeModel, StarGiftAttributeIdModel
+        m = next(a for a in u.attributes if isinstance(a, StarGiftAttributeModel))
+        prices = listings(attributes=[StarGiftAttributeIdModel(document_id=m.document.id)])
+    except Exception as e: print("маркет по модели:", e, flush=True)
+    if not prices: prices = listings()                        # нет лотов этой модели — берём всю коллекцию
+    v = min(prices) if prices else None
+    if v: print(f"[{stamp()}] маркет Telegram: {slug} от {v:.2f} TON ({len(prices)} лотов)", flush=True)
+    return round(v, 2) if v else None
+
 def auto_price(t, base, number):
     x = CAT[t] if 0 <= t < len(CAT) else None
     if not x or not x.get("custom") or x.get("fixed") or not _ub["cl"]: return
     try:
-        v = tg_value_ton(nft_slug(base, number))
+        slug = nft_slug(base, number); v = None
+        try: v = tg_floor_ton(slug)                            # 1) нижняя цена на маркете Telegram
+        except Exception as e: print("маркет:", slug, e, flush=True)
+        if v is None: v = tg_value_ton(slug)                    # 2) «Ценность» из карточки подарка
         if v is None: return
         with _cat_lock: x["price"] = v; x["vp"] = True; x["priced"] = True
         c = db()
@@ -820,22 +850,33 @@ def api_import(x_admin_key: str = Header("")):
         return {"ok": True, "added": n, "custom_types": [{"id": i, "name": x["name"], "model": x.get("model"), "price": x["price"]} for i, x in enumerate(CAT) if x.get("custom")]}
     except Exception as e: return {"ok": False, "error": str(e)}
 
+@app.get("/api/admin/types")
+def api_types(x_admin_key: str = Header("")):
+    """Список автоматически добавленных NFT: цена и подтверждена ли она."""
+    if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
+    return [{"id": i, "name": x["name"], "model": x.get("model"), "price": x["price"], "priced": bool(x.get("priced"))} for i, x in enumerate(CAT) if x.get("custom")]
+
 @app.post("/api/admin/price")
 def api_price(body: dict, x_admin_key: str = Header("")):
-    """Поставить цену автоматически добавленному NFT: {"name": "Plush Pepe", "price": 1500} (для всех моделей) или {"id": 43, "price": 900}."""
+    """Цена автоматически добавленному NFT. Один: {"name":"Plush Pepe","price":1500} или {"id":43,"price":900}.
+    Сразу несколько: {"prices":{"Myth Mask":80,"Homemade Cake":20}}. Название — для всех моделей."""
     if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
-    try: price = float(body.get("price"))
-    except Exception: return {"ok": False, "error": "нужна цена"}
-    if price <= 0: return {"ok": False, "error": "цена должна быть больше 0"}
+    items = []
+    if isinstance(body.get("prices"), dict): items = [("name", k, v) for k, v in body["prices"].items()]
+    else: items = [("id", body["id"], body.get("price"))] if "id" in body else [("name", body.get("name"), body.get("price"))]
     done = []
-    with _cat_lock:
-        for i, x in enumerate(CAT):
-            if not x.get("custom"): continue
-            if ("id" in body and int(body["id"]) == i) or (body.get("name") and _norm(x["key"]) == _norm(body["name"])):
-                x["price"] = price; x["fixed"] = True; x["priced"] = True; done.append(i)
-                c = db()
-                try: c.execute("update custom set price=?, fixed=1 where id=?", (price, x["custom"]))
-                finally: c.close()
+    for kind, ref, pr in items:
+        try: price = float(pr)
+        except Exception: return {"ok": False, "error": f"нужна цена для {ref}"}
+        if price <= 0: return {"ok": False, "error": f"цена для {ref} должна быть больше 0"}
+        with _cat_lock:
+            for i, x in enumerate(CAT):
+                if not x.get("custom"): continue
+                if (kind == "id" and int(ref) == i) or (kind == "name" and ref and _norm(x["key"]) == _norm(ref)):
+                    x["price"] = price; x["fixed"] = True; x["priced"] = True; done.append(i)
+                    c = db()
+                    try: c.execute("update custom set price=?, fixed=1, psrc=1 where id=?", (price, x["custom"]))
+                    finally: c.close()
     return {"ok": bool(done), "updated": done}
 
 @app.get("/api/admin/check")
@@ -1039,8 +1080,9 @@ def price_loop():   # необязательно: PRICE_SYNC=1 и pip install Te
                 if v:
                     x["price"] = round(sum(v) / len(v), 2)
                     if x.get("custom"):
+                        x["priced"] = True
                         c = db()
-                        try: c.execute("update custom set price=? where id=? and fixed=0", (x["price"], x["custom"]))
+                        try: c.execute("update custom set price=?, psrc=1 where id=? and fixed=0", (x["price"], x["custom"]))
                         finally: c.close()
             except Exception as e: print("price:", x["key"], e)
         time.sleep(300)
