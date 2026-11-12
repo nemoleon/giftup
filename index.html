@@ -372,7 +372,7 @@ function openBuy(i){
       else say("Оплата не прошла","var(--bad)")})
   }).catch(function(){paying=false;say("Нет связи с сервером","var(--bad)")})}
 function view(p){$("vb").style.display=p?"none":"";$("vp").style.display=p?"":"none";$("n1").className=p?"":"on";$("n2").className=p?"on":""}
-$("n1").onclick=function(){view(0)};$("n2").onclick=function(){view(1)};
+$("n1").onclick=function(){view(0)};$("n2").onclick=function(){view(1)};$("me").style.cursor="pointer";$("me").onclick=function(){view(1);window.scrollTo(0,0)};
 var nm=usr?(usr.first_name||usr.username):"player",id=usr?usr.id:"0";
 $("un").textContent=nm;$("av").textContent=nm.charAt(0).toUpperCase();
 var link="https://t.me/ТВОЙ_БОТ?startapp=ref_"+id;$("rl").textContent=link;
