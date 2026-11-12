@@ -344,13 +344,24 @@ def match(base, model):
         if not x.get("model") and best < 0: best = i
     return best
 
+def stamp(): return datetime.datetime.now().strftime("%d.%m %H:%M:%S")
+
 def on_message(m):
+    fr = m.get("from") or {}
+    who = f"{fr.get('id')} @{fr.get('username', '-')} {fr.get('first_name', '')}".strip()
     ug = m.get("unique_gift")
-    if not ug: return
-    sender = (m.get("from") or {}).get("id")
-    if not sender or str(sender) == str(meta_get("bc_owner")): return      # исходящий — пропускаем
+    if m.get("gift") and not ug:
+        print(f"[{stamp()}] 🎁 ПОЛУЧЕН обычный подарок от {who} (в игре не используется)", flush=True)
+    if not ug:
+        print(f"[{stamp()}] бизнес-сообщение от {who}: {','.join(k for k in m if k not in ('message_id','date','chat','from','business_connection_id'))}", flush=True)
+        return
+    sender = fr.get("id")
+    if not sender or str(sender) == str(meta_get("bc_owner")):
+        print(f"[{stamp()}] исходящий подарок с аккаунта (пропуск)", flush=True); return      # исходящий — пропускаем
     g = ug.get("gift", {}); ogid = ug.get("owned_gift_id")
-    if not ogid: print("нет owned_gift_id", ug); return
+    print(f"[{stamp()}] 🎁 ПОЛУЧЕН NFT от {who}: {g.get('base_name')} #{g.get('number')}, модель {(g.get('model') or {}).get('name')}, "
+          f"owned_gift_id={ogid}, origin={ug.get('origin')}", flush=True)
+    if not ogid: print("нет owned_gift_id", ug, flush=True); return
     t = match(g.get("base_name"), (g.get("model") or {}).get("name"))
     house = sender in HOUSE_IDS
     status = "unknown" if t < 0 else ("house" if house else "held")
@@ -360,10 +371,14 @@ def on_message(m):
         cur = c.execute("insert or ignore into gifts(type,number,ogid,owner,status) values(?,?,?,?,?)",
                         (t, g.get("number"), ogid, None if house else sender, status))
     finally: c.close()
+    if not cur.rowcount:
+        print(f"[{stamp()}] ↳ уже учтён ранее (повтор), пропуск", flush=True)
     if cur.rowcount:
         nm = CAT[t]["name"] if t >= 0 else g.get("base_name", "подарок")
-        if t < 0: notify(sender, f"⚠️ «{nm}» получен, но пока не распознан. Напиши в поддержку.")
-        elif not house: notify(sender, f"✅ «{nm}» зачислен в ваш инвентарь")
+        print(f"[{stamp()}] ↳ ЗАЧИСЛЕН: {nm} #{g.get('number')} → {'в склад (хозяин)' if house else 'в инвентарь ' + str(sender)}"
+              + ("" if t >= 0 else "  ⚠ НЕ РАСПОЗНАН (нет в catalog.json)"), flush=True)
+        if t < 0: notify(sender, f"⚠️ Ваш NFT «{nm}» #{g.get('number')} получен, но пока не распознан. Напиши в поддержку.")
+        elif not house: notify(sender, f"✅ Ваш NFT «{nm}» #{g.get('number')} был зачислен в ваш инвентарь")
 
 def poll_loop():
     offset = 0
@@ -372,6 +387,8 @@ def poll_loop():
             for u in tg("getUpdates", offset=offset, timeout=50, allowed_updates=["business_connection", "business_message", "pre_checkout_query", "message"]):
                 offset = u["update_id"] + 1
                 bc = u.get("business_connection")
+                if bc:
+                    print(f"[{stamp()}] бизнес-подключение: user={bc['user']['id']} включено={bc.get('is_enabled')} права={bc.get('rights')}", flush=True)
                 if bc and bc.get("is_enabled"):
                     meta_set("bc", bc["id"]); meta_set("bc_owner", str(bc["user"]["id"]))
                 if u.get("business_message"): on_message(u["business_message"])
