@@ -10,7 +10,7 @@ from urllib.parse import parse_qsl
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, Response
 
 TOKEN = os.environ["BOT_TOKEN"]                       # токен бота (он же владелец мини-аппа)
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "")           # ключ для /api/admin/credit
@@ -127,7 +127,8 @@ def check_init(data):
         ok = hmac.compare_digest(hmac.new(secret, s.encode(), hashlib.sha256).hexdigest(), h)
         if not ok or time.time() - int(pairs["auth_date"]) > 86400: raise ValueError
         return json.loads(pairs["user"])
-    except Exception:
+    except Exception as e:
+        print("initData отклонён:", repr(e), "длина:", len(data or ""))
         raise HTTPException(401, "bad init data")
 
 def fail(c, msg):
@@ -152,6 +153,24 @@ def manifest(request: Request):
 
 @app.get("/icon.png")
 def icon(): return FileResponse(os.path.join(HERE, "icon.png"), headers={"Access-Control-Allow-Origin": "*"})
+
+_av = {}
+@app.get("/api/avatar")
+def api_avatar(x_init_data: str = Header("")):
+    """Фото профиля игрока (берём через Bot API, чтобы работало, даже если Telegram не прислал photo_url)."""
+    usr = check_init(x_init_data); uid = usr["id"]
+    if not hit(f"av:{uid}", 10, 60): raise HTTPException(429, "slow")
+    c = _av.get(uid)
+    if c and time.time() - c[0] < 3600: return Response(c[1], media_type="image/jpeg")
+    try:
+        ph = tg("getUserProfilePhotos", user_id=uid, limit=1)["result"]["photos"]
+        fid = ph[0][-1 if len(ph[0]) < 2 else 1]["file_id"]
+        path = tg("getFile", file_id=fid)["result"]["file_path"]
+        data = httpx.get(f"https://api.telegram.org/file/bot{TOKEN}/{path}", timeout=20).content
+    except Exception:
+        raise HTTPException(404, "no photo")
+    _av[uid] = (time.time(), data)
+    return Response(data, media_type="image/jpeg")
 
 @app.post("/api/deposit")
 def api_deposit(x_init_data: str = Header("")):

@@ -177,14 +177,19 @@ var PRICE_URL="",EDGE=0.95,C=2*Math.PI*80;
 var WITHDRAW_FEE=0.4; // цена вывода подарка в GRAM (сервер сообщает своё значение)
 var API_URL=""; // адрес твоего сервера, например "https://giftup.example.com". Пусто = демо без сервера
 var tg=window.Telegram&&window.Telegram.WebApp,usr=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user;
-(function(){var m=document.getElementById("me");if(!m)return;if(usr&&usr.photo_url){m.style.backgroundImage='url("'+usr.photo_url+'")'}else{m.textContent=((usr&&usr.first_name)||"G").charAt(0).toUpperCase()}})();
+(function(){var m=document.getElementById("me");if(!m)return;
+  function letter(){m.textContent=((usr&&usr.first_name)||"G").charAt(0).toUpperCase()}
+  if(usr&&usr.photo_url)m.style.backgroundImage='url("'+usr.photo_url+'")';else letter();
+  if(API_URL&&tg&&tg.initData){fetch(API_URL+"/api/avatar",{headers:{"X-Init-Data":tg.initData}}).then(function(r){if(!r.ok)throw 0;return r.blob()}).then(function(b){m.textContent="";m.style.backgroundImage='url("'+URL.createObjectURL(b)+'")'}).catch(function(){})}
+  if(API_URL&&!(tg&&tg.initData)){document.addEventListener("DOMContentLoaded",function(){var d=document.createElement("div");d.style.cssText="position:fixed;inset:0;z-index:99999;background:#0f0f11;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;font:600 18px system-ui";d.textContent="Открой приложение через Telegram: бот @ТВОЙ_БОТ → кнопка «Играть»";document.body.appendChild(d)})}
+})();
 if(tg){try{tg.ready();tg.expand()}catch(e){}}
 function $(i){return document.getElementById(i)}
 function f(v,d){return (Math.round(v*100)/100).toFixed(d===undefined?2:d)}
 var S=null;try{S=JSON.parse(localStorage.getItem("gu1")||"null")}catch(e){}
 var uid=1;
 function mk(t,no){return {id:uid++,t:t,no:no||Math.floor(Math.random()*600000)+1000}}
-if(!S){S={bal:0,boosts:0,best:0,free:"",inv:START.map(function(s){return mk(s[0],s[1])})}}
+if(API_URL||!S){S={bal:0,boosts:0,best:0,free:"",inv:API_URL?[]:START.map(function(s){return mk(s[0],s[1])})}}
 S.inv.forEach(function(g){if(g.id>=uid)uid=g.id+1});
 if(S.bal===0.02&&!S.boosts)S.bal=0; // старый стартовый баланс сбрасываем
 function save(){if(API_URL)return;try{localStorage.setItem("gu1",JSON.stringify(S))}catch(e){}}
