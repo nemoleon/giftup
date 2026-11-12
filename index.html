@@ -24,6 +24,10 @@ button{font:inherit;color:inherit;border:0;cursor:pointer}
 .ptabs{display:flex;background:#0f0f11;border-radius:26px;padding:6px;margin-bottom:10px}.ptabs button{flex:1;padding:14px 6px;border-radius:22px;background:none;color:var(--mut);font-weight:700}.ptabs .on{background:var(--ac);color:#1a0b13}
 .ptl{display:flex;gap:8px;margin-bottom:10px}.ptl .tt{flex:1;background:var(--cd2);border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--mut);font-weight:600;gap:6px}
 .pg{display:grid;grid-template-columns:1fr 1fr;gap:8px}.pi{background:var(--cd2);border-radius:18px;padding:10px;text-align:center}.pi img{width:96px;height:96px;object-fit:contain;border-radius:14px}.pi b{display:block;font-size:14px;margin-top:4px}.pi small{color:var(--mut);display:block}
+.pia{display:flex;align-items:center;justify-content:space-around;margin-top:8px;padding:6px 0 2px;color:#8d8d98}.pia button{background:none;border:0;color:inherit;padding:6px 14px}.pia button:active{color:var(--ac)}.pia i{width:1px;height:20px;background:#34343c}.pia .ev{font-size:12px;font-weight:700;color:var(--ac)}
+.ptl .tt{white-space:nowrap;font-size:15px;min-width:0}.psa{height:44px;padding:0 18px;border-radius:22px;background:var(--cd2);color:#fff;font-weight:700;font-size:14px;white-space:nowrap}.psa[disabled]{color:#4c4c55}
+#nwm{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:24px}#nwm.show{display:flex}
+#nwm .bx{width:100%;max-width:420px;background:#1c1b24;border:1px solid #4a4160;border-radius:28px;padding:26px}#nwm h3{margin:0 0 14px;font-size:24px}#nwm p{margin:0 0 6px;font-size:16px;line-height:1.5}#nwm button{width:100%;margin-top:18px;padding:16px;border-radius:18px;background:var(--ac);color:#1a0b13;font-weight:800;font-size:16px}
 .pw{width:100%;margin-top:8px;padding:10px;border-radius:14px;background:var(--ac);color:#1a0b13;font-weight:800}.pw[disabled]{opacity:.4}
 .hg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.hc{position:relative;aspect-ratio:.7;border-radius:16px;background:var(--cd2) center/cover no-repeat;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
 .hc .hn{margin:0 4px;background:rgba(15,15,17,.9);border-radius:12px;padding:6px 8px;min-width:0}.hc .hn b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hc .hn small{color:var(--mut);font-size:11px}
@@ -205,6 +209,7 @@ requestAnimationFrame(frame)})();
  <div class="card" id="bgc"><div class="row" style="justify-content:space-between"><div class="row" style="gap:10px"><span class="crn">👑</span><b style="font-size:19px">Лучший буст</b></div><span class="vp2"><span id="best">0</span> <span class="gem g2" style="width:18px;height:18px"></span></span></div><div id="bgb"></div></div>
  <div class="card"><div class="ptabs"><button id="pt1" class="on">Инвентарь</button><button id="pt2">История апгрейдов</button></div><div id="pbody"></div></div>
 </div>
+<div id="nwm"><div class="bx"><h3>Вывод пока недоступен</h3><p id="nwt"></p><p>Подарки за звёзды нельзя вывести: на них можно только играть в апгрейде.</p><button id="nwok">Понятно</button></div></div>
 <div class="win" id="win"><div class="rays"></div><button class="wx" id="wx">✕</button><div class="wc"><div class="wp"><div class="coin"></div><span id="wpr"></span></div><img id="wim" alt=""><div id="wn"></div><div id="wno"></div></div><div class="wb"><button class="go" id="wmore">Забустить ещё</button><button class="go2" id="winv">В инвентарь</button></div><canvas id="cf"></canvas></div>
 <div id="dm"><div id="dmh" class="dh"></div><div id="dmb"></div></div>
 <div id="st"><div class="dh"><div class="dt"><span class="ic2"><svg viewBox="0 0 24 24" width="22" height="22" fill="#fff"><path d="M10.3 2h3.4l.6 2.7 1.5.8 2.4-1.5 2.4 2.4-1.5 2.4.8 1.5 2.7.6v3.4l-2.7.6-.8 1.5 1.5 2.4-2.4 2.4-2.4-1.5-1.5.8-.6 2.7h-3.4l-.6-2.7-1.5-.8-2.4 1.5-2.4-2.4 1.5-2.4-.8-1.5L2 13.7v-3.4l2.7-.6.8-1.5-1.5-2.4 2.4-2.4 2.4 1.5 1.5-.8zM12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4z"/></svg></span>Настройки</div><button class="dr" id="stx">✕</button></div><div id="stb"></div></div>
@@ -277,7 +282,7 @@ function save(){if(API_URL)return;try{localStorage.setItem("gu1",JSON.stringify(
 function api(path,body){var o={headers:{"X-Init-Data":(tg&&tg.initData)||""}};
   if(body!==undefined){o.method="POST";o.headers["Content-Type"]="application/json";o.body=JSON.stringify(body)}
   return fetch(API_URL+path,o).then(function(r){return r.json()})}
-function applyState(st){S.bal=st.bal;S.boosts=st.boosts;S.online=st.online;S.total=st.total;S.best=st.best;S.inv=st.inv;S.hist=st.hist||[];S.si=st.stock_items||[];S.bg=st.bg||null;S.owner=st.owner||"";if(st.fee!==undefined)WITHDRAW_FEE=st.fee;if(st.spg)SPG=st.spg;if(st.smin)SMIN=st.smin;
+function applyState(st){S.bal=st.bal;S.boosts=st.boosts;S.online=st.online;S.total=st.total;S.best=st.best;S.inv=st.inv;S.hist=st.hist||[];S.si=st.stock_items||[];S.bg=st.bg||null;S.owner=st.owner||"";S.nwwd=!!st.nwwd;if(st.fee!==undefined)WITHDRAW_FEE=st.fee;if(st.spg)SPG=st.spg;if(st.smin)SMIN=st.smin;
   (st.custom||[]).forEach(function(x){T[x.t]={n:x.n,v:x.v,ok:1,custom:1};IM[x.t]=PH;KEYS[x.t]=x.n});
   st.prices.forEach(function(p,i){if(T[i]){T[i].v=p;T[i].ok=1}});T.forEach(function(t,i){t.stock=st.stock[i]||0})}
 function sync(){if(!API_URL)return Promise.resolve();return api("/api/state").then(function(st){if(st&&st.inv){applyState(st);render();if(!busy)grid()}}).catch(function(){say("Нет связи с сервером","var(--bad)")})}
@@ -339,7 +344,7 @@ $("gr").onclick=function(e){
     api("/api/withdraw",{id:ids[0].id}).then(function(r){if(r.ok){var nwg=T[ids[0].t].nw;applyState(r.state);sel={};render();grid();say(nwg?"🎁 Подарок отправлен вам в Telegram":"Заявка принята, списано "+WITHDRAW_FEE+" GRAM — подарок придёт в Telegram","var(--ok)")}else say(r.error,"var(--bad)")});return}
   var b=e.target.closest(".cd");if(!b||busy)return;
   if(b.dataset.s!==undefined){openBuy(+b.dataset.s);return}
-  if(b.dataset.i){var id=+b.dataset.i,was=sel[id];sel={};if(!was)sel[id]=true;grid();render()}
+  if(b.dataset.i){var id=+b.dataset.i,was=sel[id],ig=S.inv.filter(function(g){return g.id===id})[0];if(ig&&ig.pr===0){say("Этот NFT ещё оценивается","var(--bad)");return}sel={};if(!was)sel[id]=true;grid();render()}
   else if(b.dataset.w){if(stake()>0&&T[+b.dataset.w].v<=stake()){say("Выбери подарок дороже своей ставки","var(--bad)");return}if(!avail(+b.dataset.w)){say("Этого подарка сейчас нет в наличии","var(--bad)");return}want=+b.dataset.w;wantG=+b.dataset.g||0;render();grid();window.scrollTo({top:0,behavior:"smooth"})}
   else if(b.dataset.b){if(API_URL){say("Магазин пока работает только в демо-режиме");return}var i=+b.dataset.b;if(S.bal>=T[i].v){S.bal-=T[i].v;var g=mk(i);S.inv.unshift(g);save();say("Куплено: "+T[i].n+" #"+g.no,"var(--ok)");render()}else say("Не хватает баланса — пополни его","var(--bad)")}};
 $("rg").oninput=function(){pcts=parseInt(this.value)||0;render();if(tabM==2&&API_URL)grid()};
@@ -394,7 +399,7 @@ document.addEventListener("click",function(e){var t=e.target.closest&&e.target.c
       tg.openInvoice(r.link,function(st){if(st==="paid"){dmClose();say("✅ Оплачено: баланс пополнится через несколько секунд","var(--ok)");pollGift()}else if(st==="cancelled")say("Оплата отменена");else say("Оплата не прошла","var(--bad)")})
     }).catch(function(){t.disabled=false;say("Нет связи с сервером","var(--bad)")});return}
   var m=t.dataset.m;if(m==="stars")dmStars();
-  else if(m==="gifts")dmGifts()
+  else if(m==="gifts"){var go="RelayerUpNow";dmClose();if(tg&&tg.openTelegramLink)tg.openTelegramLink("https://t.me/"+go);else window.open("https://t.me/"+go,"_blank")}
   else if(m==="gram")dmGramMenu()});
 var dga="",DGEM='<span class="gem" style="width:20px;height:20px;background-color:#8d7d88"></span>';
 function dgShow(){var e=$("dga");e.textContent=dga||"0.00";e.style.color=dga?"#fff":"#6b6068";$("dgb").disabled=!(dinfo&&parseFloat(dga)>=dinfo.min);if($("dgbal"))$("dgbal").textContent=f(S.bal)}
@@ -541,19 +546,25 @@ function dts(t){var d=new Date(t*1000),z=function(n){return (n<10?"0":"")+n};ret
 function renderProf(){var b=$("bgb");if(!b||!$("pbody"))return;var bg=S.bg,h="",i;
   b.innerHTML=bg&&T[bg.t]?'<div class="bgi"><img src="'+IM[bg.t]+'" alt=""></div><div class="bgm"><div><small>'+(T[bg.t].nw?"Обычный подарок":"NFT")+'</small><b>'+T[bg.t].n+'</b><small>'+(bg.no?"#"+bg.no:"")+'</small></div><span class="chn">'+f(bg.ch)+'%</span></div>':'<p class="note" style="margin:10px 0 0">Пока нет удачных бустов</p>';
   $("pt1").className=ptab==1?"on":"";$("pt2").className=ptab==2?"on":"";
-  if(ptab==1){var inv=S.inv.slice().sort(function(a,c){return pdesc?T[c.t].v-T[a.t].v:T[a.t].v-T[c.t].v}),tot=0;inv.forEach(function(g){tot+=T[g.t].v});
-    h='<div class="ptl"><button class="srt'+(pdesc?"":" asc")+'" id="psr" aria-label="Сортировка"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/></svg></button><div class="tt" style="height:44px">Всего подарков: '+inv.length+' <span class="gem g2" style="width:16px;height:16px"></span> '+f(tot)+'</div></div>';
+  if(ptab==1){var inv=S.inv.slice().sort(function(a,c){return pdesc?T[c.t].v-T[a.t].v:T[a.t].v-T[c.t].v}),tot=0;inv.forEach(function(g){if(g.pr!==0)tot+=T[g.t].v});
+    h='<div class="ptl"><button class="srt'+(pdesc?"":" asc")+'" id="psr" aria-label="Сортировка"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/></svg></button><div class="tt" style="height:44px">Всего: '+f(tot)+' <span class="gem g2" style="width:16px;height:16px"></span></div><button class="psa" id="psa"'+(inv.some(function(g){return g.pr!==0})?"":" disabled")+'>Продать все</button></div>';
     if(!inv.length)h+='<p class="note" style="margin:26px 0">Ваш инвентарь пуст.</p>';
-    else{h+='<div class="pg">';inv.forEach(function(g){var x=T[g.t];h+='<div class="pi"><img src="'+gi(g)+'" alt=""><b>'+x.n+'</b><small>'+(g.no?"#"+g.no+" · ":"")+f(x.v)+' GRAM</small>'+(x.nw?'<button class="pw" data-wd="'+g.id+'" data-nw="1">Вывести</button>':'<button class="pw" data-wd="'+g.id+'">Вывести'+(API_URL?" · "+WITHDRAW_FEE:"")+'</button>')+'</div>'});h+='</div>'}}
+    else{h+='<div class="pg">';inv.forEach(function(g){var x=T[g.t],ev=g.pr===0,bd=x.nw?'<span class="pb"><span class="stp"></span>'+x.st+'</span>':'<span class="pb">'+gem()+f(x.v,x.v<10?2:(x.v<100?1:0))+'</span>';
+      h+='<div class="pi"><img src="'+gi(g)+'" alt=""><b>'+x.n+'</b><small>'+(x.nw?"Обычный":"#"+g.no)+'</small>'+(ev?'<div class="pia"><span class="ev">На оценке</span></div>':'<div class="pia"><button data-sell="'+g.id+'" aria-label="Продать"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 2.5 3.2 9.6 12 21.5l8.8-11.9L12 2.5Zm0 3.4 3.4 2.8-3.4 4.6-3.4-4.6L12 5.9Z"/></svg></button><i></i><button data-wd="'+g.id+'"'+(x.nw?' data-nw="1"':'')+' aria-label="Вывести"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg></button></div>')+'</div>'});h+='</div>'}}
   else{var H=(S.hist||[]).filter(function(r){return T[r.t]}),HP=9,np=Math.max(1,Math.ceil(H.length/HP));if(hpg>=np)hpg=np-1;if(hpg<0)hpg=0;
     if(!H.length)h='<p class="note" style="margin:26px 0">История пуста.</p>';
     else{h='<div class="hg">';H.slice(hpg*HP,hpg*HP+HP).forEach(function(r){var x=T[r.t],bd=x.nw?'<span class="pb"><span class="stp"></span>'+x.st+'</span>':'<span class="pb">'+gem()+f(x.v,x.v<10?2:(x.v<100?1:0))+'</span>',st=r.w===2?["o","Выведен"]:(r.w?["w","Выигран"]:["l","Проигран"]);
       h+='<div class="hc" style="background-image:url('+gi(r)+')">'+bd+'<div class="hn"><b>'+x.n+'</b><small>'+(x.nw?"Обычный":"#"+(r.no||0))+'</small></div><div class="hs '+st[0]+'">'+st[1]+'</div></div>'});
       h+='</div>';if(np>1)h+='<div class="hp"><button id="hpv"'+(hpg?'':' disabled')+'>‹</button><span>'+(hpg+1)+' из '+np+'</span><button id="hnx"'+(hpg<np-1?'':' disabled')+'>›</button></div>'}}
   $("pbody").innerHTML=h}
-document.addEventListener("click",function(e){var t=e.target.closest&&e.target.closest("#psr,[data-wd],#pt1,#pt2,#hpv,#hnx");if(!t)return;
+document.addEventListener("click",function(e){if(e.target.id==="nwok"||e.target.id==="nwm")$("nwm").classList.remove("show")});
+document.addEventListener("click",function(e){var t=e.target.closest&&e.target.closest("#psr,[data-wd],[data-sell],#psa,#pt1,#pt2,#hpv,#hnx");if(!t)return;
   if(t.id==="hpv"){hpg--;renderProf();return}if(t.id==="hnx"){hpg++;renderProf();return}
   if(t.id==="pt1"){ptab=1;renderProf();return}if(t.id==="pt2"){ptab=2;hpg=0;renderProf();return}if(t.id==="psr"){pdesc=!pdesc;renderProf();return}
+  if(t.id==="psa"||t.dataset.sell){var all=t.id==="psa",sid=+t.dataset.sell;
+    if(!API_URL){var tt=0;S.inv=S.inv.filter(function(g){if(all||g.id===sid){tt+=T[g.t].v;return false}return true});S.bal+=tt;save();render();grid();say("Продано: +"+f(tt)+" GRAM","var(--ok)");return}
+    t.disabled=true;api("/api/sell",all?{all:true}:{ids:[sid]}).then(function(r){if(r.ok){applyState(r.state);render();grid();say("Продано: +"+f(r.amount)+" GRAM","var(--ok)")}else{t.disabled=false;say(r.error||"Ошибка","var(--bad)")}}).catch(function(){t.disabled=false;say("Нет связи с сервером","var(--bad)")});return}
+  if(API_URL&&t.dataset.nw&&!S.nwwd){var gg=S.inv.filter(function(g){return g.id===+t.dataset.wd})[0];$("nwt").textContent=gg?T[gg.t].n+" #"+gg.no:"";$("nwm").classList.add("show");return}
   if(!API_URL){say("Вывод работает только на сервере","var(--bad)");return}
   var id=+t.dataset.wd,nw=!!t.dataset.nw,go=function(){t.disabled=true;api("/api/withdraw",{id:id}).then(function(r){if(r.ok){applyState(r.state);render();grid();say(nw?"🎁 Подарок отправлен вам в Telegram":"Заявка принята, списано "+WITHDRAW_FEE+" GRAM — подарок придёт в Telegram","var(--ok)")}else{t.disabled=false;say(r.error||"Ошибка","var(--bad)")}}).catch(function(){t.disabled=false;say("Нет связи с сервером","var(--bad)")})};
   if(tg&&tg.showConfirm)tg.showConfirm(nw?"Вывести подарок? Он придёт вам в Telegram бесплатно.":"Вывести подарок? Спишется "+WITHDRAW_FEE+" GRAM.",function(ok){if(ok)go()});else go()});
