@@ -279,7 +279,7 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         extra = round(float(body.get("extra", 0)), 4); want = int(body.get("want", -1))
     except Exception:
         return {"ok": False, "error": "Неверные данные"}
-    if extra < 0 or not 0 <= want < len(CAT) or CAT[want].get("nw"): return {"ok": False, "error": "Неверные данные"}
+    if extra < 0 or not 0 <= want < len(CAT): return {"ok": False, "error": "Неверные данные"}
     if len(ids) > 1: return {"ok": False, "error": "Для улучшения можно выбрать только один подарок"}
     c = db()
     try:
@@ -292,20 +292,28 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         price = CAT[want]["price"]
         if stake <= 0: return fail(c, "Добавь ставку")
         if price <= stake: return fail(c, "Выбери подарок дороже своей ставки")
-        target = c.execute("select * from gifts where type=? and status='house' order by random() limit 1", (want,)).fetchone()
-        if not target: return fail(c, "Этого подарка сейчас нет в наличии")
+        if CAT[want].get("nw"): target = None            # обычные подарки выдаются без остатка (создаются при выигрыше)
+        else:
+            target = c.execute("select * from gifts where type=? and status='house' order by random() limit 1", (want,)).fetchone()
+            if not target: return fail(c, "Этого подарка сейчас нет в наличии")
         ch = min(MAXCH, stake / price * 100 * EDGE)
         # честный рандом: HMAC(server_seed, "id:nonce"); хэш seed виден игроку заранее
         hh = hmac.new(u["seed"].encode(), f'{uid}:{u["nonce"]}'.encode(), hashlib.sha256).digest()
         roll = int.from_bytes(hh[:8], "big") / 2**64 * 100
         win = abs(roll - 50) < ch / 2
-        for g in gifts: c.execute("update gifts set owner=null, status='house' where id=?", (g["id"],))
+        for g in gifts:
+            if CAT[g["type"]].get("nw"): c.execute("update gifts set owner=null, status='gone' where id=?", (g["id"],))   # обычный подарок сгорает
+            else: c.execute("update gifts set owner=null, status='house' where id=?", (g["id"],))
         c.execute("update users set bal=bal-?, boosts=boosts+1, nonce=nonce+1 where id=?", (extra, uid))
         gift = None
         if win:
-            c.execute("update gifts set owner=?, status='held' where id=?", (uid, target["id"]))
+            if target is None:
+                cur = c.execute("insert into gifts(type,number,ogid,owner,status) values(?,?,?,?,'held')", (want, 0, "win:" + secrets.token_hex(8), uid))
+                gift = {"id": cur.lastrowid, "t": want, "no": 0}
+            else:
+                c.execute("update gifts set owner=?, status='held' where id=?", (uid, target["id"]))
+                gift = {"id": target["id"], "t": want, "no": target["number"]}
             c.execute("update users set best=max(best,?) where id=?", (price, uid))
-            gift = {"id": target["id"], "t": want, "no": target["number"]}
         st = state(c, uid); c.execute("commit")
         return {"ok": True, "win": win, "roll": roll, "chance": ch, "gift": gift, "state": st}
     except Exception:
@@ -437,6 +445,21 @@ def on_message(m):
         if t < 0: notify(sender, f"⚠️ Ваш NFT «{nm}» #{g.get('number')} получен, но пока не распознан. Напиши в поддержку.")
         elif not house: notify(sender, f"✅ Ваш NFT «{nm}» #{g.get('number')} был зачислен в ваш инвентарь")
 
+def on_start(m):
+    fr = m.get("from") or {}
+    name = (fr.get("first_name") or "друг").replace("<", "").replace(">", "")
+    own = owner_username()
+    send = f'отправьте подарок на <a href="https://t.me/{own}">@{own}</a>' if own else "отправьте подарок владельцу приложения"
+    text = (f"Привет, {name}! 🎁\n\n<b>Gift Up Now</b> — апгрейд Telegram-подарков.\n\n"
+            f"💝 Чтобы пополнить инвентарь, {send}\n\n"
+            "Нажмите кнопку ниже, чтобы открыть приложение")
+    kb = {"inline_keyboard": [[{"text": "Открыть GiftUp", "web_app": {"url": PUBLIC_URL}}]]} if PUBLIC_URL else None
+    try:
+        p = dict(chat_id=fr.get("id"), text=text, parse_mode="HTML", disable_web_page_preview=True)
+        if kb: p["reply_markup"] = kb
+        tg("sendMessage", **p)
+    except Exception as e: print("start:", e)
+
 def poll_loop():
     offset = 0
     while True:
@@ -451,6 +474,8 @@ def poll_loop():
                 if u.get("business_message"): on_message(u["business_message"])
                 if u.get("pre_checkout_query"): on_pre_checkout(u["pre_checkout_query"])
                 if (u.get("message") or {}).get("successful_payment"): on_stars_paid(u["message"])
+                mm = u.get("message") or {}
+                if (mm.get("text") or "").startswith("/start") and (mm.get("chat") or {}).get("type") == "private": on_start(mm)
         except Exception as e:
             print("poll:", e); time.sleep(5)
 
