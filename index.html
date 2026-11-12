@@ -85,6 +85,7 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 #wn{font-size:30px;font-weight:700;margin-top:16px}#wno{color:var(--mut);font-size:22px}
 .wx{position:absolute;z-index:2;top:calc(70px + env(safe-area-inset-top,0px));left:50%;margin-left:-26px;width:52px;height:52px;border-radius:50%;background:#201219;font-size:20px}
 .wb{position:absolute;z-index:2;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px}
+.wb .go3{padding:18px;border-radius:22px;background:transparent;border:2px solid var(--ac);color:var(--ac);font-weight:800;font-size:17px}.wb .go3[disabled]{opacity:.5}
 .wb .go2{padding:18px;border-radius:22px;background:var(--cd);font-weight:700;font-size:17px}
 #cf{position:absolute;inset:0;z-index:3;pointer-events:none}
 .stp{display:inline-block;width:14px;height:14px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffc233' d='M12 2l3 6.6 7.2.8-5.4 4.9 1.5 7.1L12 17.8 5.7 21.4l1.5-7.1L1.8 9.4 9 8.6z'/%3E%3C/svg%3E") center/contain no-repeat}
@@ -210,7 +211,7 @@ requestAnimationFrame(frame)})();
  <div class="card"><div class="ptabs"><button id="pt1" class="on">Инвентарь</button><button id="pt2">История апгрейдов</button></div><div id="pbody"></div></div>
 </div>
 <div id="nwm"><div class="bx"><h3>Вывод пока недоступен</h3><p id="nwt"></p><p>Подарки за звёзды нельзя вывести: на них можно только играть в апгрейде.</p><button id="nwok">Понятно</button></div></div>
-<div class="win" id="win"><div class="rays"></div><button class="wx" id="wx">✕</button><div class="wc"><div class="wp"><div class="coin"></div><span id="wpr"></span></div><img id="wim" alt=""><div id="wn"></div><div id="wno"></div></div><div class="wb"><button class="go" id="wmore">Забустить ещё</button><button class="go2" id="winv">В инвентарь</button></div><canvas id="cf"></canvas></div>
+<div class="win" id="win"><div class="rays"></div><button class="wx" id="wx">✕</button><div class="wc"><div class="wp"><div class="coin"></div><span id="wpr"></span></div><img id="wim" alt=""><div id="wn"></div><div id="wno"></div></div><div class="wb"><button class="go3" id="wwd" style="display:none"></button><button class="go" id="wmore">Забустить ещё</button><button class="go2" id="winv">В инвентарь</button></div><canvas id="cf"></canvas></div>
 <div id="dm"><div id="dmh" class="dh"></div><div id="dmb"></div></div>
 <div id="st"><div class="dh"><div class="dt"><span class="ic2"><svg viewBox="0 0 24 24" width="22" height="22" fill="#fff"><path d="M10.3 2h3.4l.6 2.7 1.5.8 2.4-1.5 2.4 2.4-1.5 2.4.8 1.5 2.7.6v3.4l-2.7.6-.8 1.5 1.5 2.4-2.4 2.4-2.4-1.5-1.5.8-.6 2.7h-3.4l-.6-2.7-1.5-.8-2.4 1.5-2.4-2.4 1.5-2.4-.8-1.5L2 13.7v-3.4l2.7-.6.8-1.5-1.5-2.4 2.4-2.4 2.4 1.5 1.5-.8zM12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4z"/></svg></span>Настройки</div><button class="dr" id="stx">✕</button></div><div id="stb"></div></div>
 <div class="sheet" id="dp"><div class="pn"><b style="font-size:18px">Пополнение GRAM</b>
@@ -483,10 +484,18 @@ function confetti(){
     P.forEach(function(p){p.vy+=.3;p.vx*=.992;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;cx.save();cx.globalAlpha=Math.max(0,Math.min(1,(5000-el)/1500));cx.translate(p.x,p.y);cx.rotate(p.r);cx.fillStyle=p.c;cx.fillRect(-p.w/2,-p.h/2,p.w,p.h);cx.restore()});
     if(el<5000)raf=requestAnimationFrame(loop);else cx.clearRect(0,0,cv.width,cv.height)})(t0);
 }
-function showWin(g){var ig=(S.inv||[]).filter(function(x){return x.id===g.id})[0];$("wim").src=ig?gi(ig):gi(g);$("wpr").textContent=f(T[g.t].v);$("wn").textContent=T[g.t].n;$("wno").textContent="#"+g.no;
+var wwdId=0;
+function wdStart(id,nw,btn){
+  if(!API_URL){say("Вывод работает только на сервере","var(--bad)");return}
+  if(!nw&&S.bal+1e-9<WITHDRAW_FEE){hideWin();say("Для вывода нужно "+WITHDRAW_FEE+" GRAM на балансе — пополните баланс","var(--bad)");dmOpen();return}
+  var go=function(){if(btn)btn.disabled=true;api("/api/withdraw",{id:id}).then(function(r){if(btn)btn.disabled=false;if(r.ok){applyState(r.state);hideWin();render();grid();say(nw?"🎁 Подарок отправлен вам в Telegram":"Заявка принята, списано "+WITHDRAW_FEE+" GRAM — подарок придёт в Telegram","var(--ok)")}else say(r.error||"Ошибка","var(--bad)")}).catch(function(){if(btn)btn.disabled=false;say("Нет связи с сервером","var(--bad)")})};
+  var q=nw?"Вывести подарок? Он придёт вам в Telegram бесплатно.":"Вывести подарок? С баланса спишется "+WITHDRAW_FEE+" GRAM.";
+  if(tg&&tg.showConfirm)tg.showConfirm(q,function(ok){if(ok)go()});else go()}
+function showWin(g){var ig=(S.inv||[]).filter(function(x){return x.id===g.id})[0];$("wim").src=ig?gi(ig):gi(g);$("wpr").textContent=f(T[g.t].v);$("wn").textContent=T[g.t].n;$("wno").textContent="#"+g.no;wwdId=g.id;{var wb=$("wwd");wb.style.display=(API_URL&&!T[g.t].nw&&(!ig||ig.pr!==0))?"":"none";wb.textContent="Вывести · "+WITHDRAW_FEE+" GRAM"}
   var w=$("win");w.className="win";void w.offsetWidth;w.className="win show";confetti()}
 function hideWin(){cancelAnimationFrame(raf);cx.clearRect(0,0,cv.width,cv.height);$("win").className="win"}
 $("wx").onclick=hideWin;$("wmore").onclick=function(){hideWin();window.scrollTo({top:0,behavior:"smooth"})};
+$("wwd").onclick=function(){wdStart(wwdId,false,this)};
 $("winv").onclick=function(){hideWin();go2(1,1)};
 // ---------- кошелёк (TON Connect) и пополнение ----------
 var tc=null,dinfo=null;
@@ -566,8 +575,7 @@ document.addEventListener("click",function(e){var t=e.target.closest&&e.target.c
     t.disabled=true;api("/api/sell",all?{all:true}:{ids:[sid]}).then(function(r){if(r.ok){applyState(r.state);render();grid();say("Продано: +"+f(r.amount)+" GRAM","var(--ok)")}else{t.disabled=false;say(r.error||"Ошибка","var(--bad)")}}).catch(function(){t.disabled=false;say("Нет связи с сервером","var(--bad)")});return}
   if(API_URL&&t.dataset.nw&&!S.nwwd){var gg=S.inv.filter(function(g){return g.id===+t.dataset.wd})[0];$("nwt").textContent=gg?T[gg.t].n+" #"+gg.no:"";$("nwm").classList.add("show");return}
   if(!API_URL){say("Вывод работает только на сервере","var(--bad)");return}
-  var id=+t.dataset.wd,nw=!!t.dataset.nw,go=function(){t.disabled=true;api("/api/withdraw",{id:id}).then(function(r){if(r.ok){applyState(r.state);render();grid();say(nw?"🎁 Подарок отправлен вам в Telegram":"Заявка принята, списано "+WITHDRAW_FEE+" GRAM — подарок придёт в Telegram","var(--ok)")}else{t.disabled=false;say(r.error||"Ошибка","var(--bad)")}}).catch(function(){t.disabled=false;say("Нет связи с сервером","var(--bad)")})};
-  if(tg&&tg.showConfirm)tg.showConfirm(nw?"Вывести подарок? Он придёт вам в Telegram бесплатно.":"Вывести подарок? Спишется "+WITHDRAW_FEE+" GRAM.",function(ok){if(ok)go()});else go()});
+  wdStart(+t.dataset.wd,!!t.dataset.nw,t)});
 function view(p){$("vb").style.display=p?"none":"";$("vp").style.display=p?"":"none";$("n1").className=p?"":"on";$("n2").className=p?"on":""}
 $("n0").onclick=function(){$("fr").click()};$("n1").onclick=function(){view(0)};$("n2").onclick=function(){view(1)};$("me").style.cursor="pointer";$("me").onclick=function(){view(1);window.scrollTo(0,0)};
 var nm=usr?(usr.first_name||usr.username):"player",id=usr?usr.id:"0";
