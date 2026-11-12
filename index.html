@@ -96,7 +96,8 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 @keyframes spFill{from{stroke-dasharray:0 1100}to{stroke-dasharray:672 1100}}
 @keyframes spPop{from{opacity:0;transform:translateY(34px) scale(.5)}to{opacity:1;transform:none}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2/dist/tonconnect-ui.min.js"></script></head><body>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script></head><body>
 <div id="sp"><svg viewBox="0 0 640 640" aria-hidden="true"><g id="spw"><circle cx="320" cy="320" r="175" fill="none" stroke="#601c40" stroke-width="80"/><circle id="spa" cx="320" cy="320" r="175" fill="none" stroke="#ff4fa0" stroke-width="80" stroke-dasharray="0 1100" transform="rotate(-20 320 320)"/></g><polygon id="spt" points="320,225 258,365 382,365" fill="#ff4fa0"/><circle id="spd" cx="320" cy="410" r="26" fill="#ff4fa0"/></svg><div id="spn"><span class="dg" id="spH" style="width:0"><div><span></span><span>1</span></div></span><span class="dg"><div id="spT"></div></span><span class="dg"><div id="spO"></div></span><span class="pc">%</span></div></div>
 <div id="vb">
  <div class="top"><span class="st" title="Онлайн сейчас"><svg viewBox="0 0 24 24" width="22" height="22" fill="#ff4fa0"><circle cx="8.5" cy="8" r="3.6"/><circle cx="16.5" cy="8.6" r="3"/><path d="M1.5 19c0-3.6 3-6 7-6s7 2.4 7 6z"/><path d="M16 13.4c3.6 0 6.5 2 6.5 5.1h-5.2c0-2-.6-3.6-1.9-5z" opacity=".8"/></svg><span id="bc">1</span></span><span class="st" title="Всего апгрейдов"><svg viewBox="0 0 24 24" width="24" height="24" fill="#ff4fa0"><path d="M12 3l9.5 8v3.2L12 6.3 2.5 14.2V11z"/><path d="M12 11.5l9.5 8V22L12 14.8 2.5 22v-2.5z" opacity=".85"/></svg><span id="bt">0</span></span><div class="bar"><span class="gem g2"></span><span id="bl">0</span><button class="plus" id="dep">+ Пополнить</button></div><div class="me" id="me"></div></div>
@@ -181,7 +182,7 @@ var tg=window.Telegram&&window.Telegram.WebApp,usr=tg&&tg.initDataUnsafe&&tg.ini
   function letter(){m.textContent=((usr&&usr.first_name)||"G").charAt(0).toUpperCase()}
   if(usr&&usr.photo_url)m.style.backgroundImage='url("'+usr.photo_url+'")';else letter();
   if(API_URL&&tg&&tg.initData){fetch(API_URL+"/api/avatar",{headers:{"X-Init-Data":tg.initData}}).then(function(r){if(!r.ok)throw 0;return r.blob()}).then(function(b){m.textContent="";m.style.backgroundImage='url("'+URL.createObjectURL(b)+'")'}).catch(function(){})}
-  if(API_URL&&!(tg&&tg.initData)){document.addEventListener("DOMContentLoaded",function(){var d=document.createElement("div");d.style.cssText="position:fixed;inset:0;z-index:99999;background:#0f0f11;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;font:600 18px system-ui";d.textContent="Открой приложение через Telegram: бот @ТВОЙ_БОТ → кнопка «Играть»";document.body.appendChild(d)})}
+  if(API_URL&&!(tg&&tg.initData)){document.addEventListener("DOMContentLoaded",function(){var d=document.createElement("div");d.style.cssText="position:fixed;inset:0;z-index:99999;background:#0f0f11;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;font:600 18px system-ui";d.textContent="Открой приложение через Telegram: бот @ТВОЙ_БОТ → кнопка «Играть»";var sm=document.createElement("div");sm.style.cssText="margin-top:18px;font:12px system-ui;color:#8d8d98";sm.textContent="диагностика: SDK="+(window.Telegram&&window.Telegram.WebApp?"есть":"нет")+", initData="+((tg&&tg.initData)?"есть":"нет")+", platform="+((tg&&tg.platform)||"-");d.appendChild(document.createElement("br"));d.appendChild(sm);document.body.appendChild(d)})}
 })();
 if(tg){try{tg.ready();tg.expand()}catch(e){}}
 function $(i){return document.getElementById(i)}
@@ -229,11 +230,11 @@ function markDis(){var st=stake(),n=document.querySelectorAll("#gr .cd[data-w]")
 function grid(){
   $("m1").className=tabM==1?"on":"";$("m2").className=tabM==2?"on":"";$("sb").style.display=tabM==1?"":"none";
   [1,2,3].forEach(function(k){$("u"+k).className=tabU==k?"on":""});var h="";
-  if(tabM==2){sorted().forEach(function(i){h+=card(i,"желаемый",want===i,'data-w="'+i+'" data-v="'+T[i].v+'"')})}
+  if(tabM==2){sorted().forEach(function(i){if(API_URL&&!T[i].stock)return;h+=card(i,"желаемый",want===i,'data-w="'+i+'" data-v="'+T[i].v+'"')});if(!h)h='<div class="empty" style="grid-column:1/-1">Пока здесь нет подарков. Они появятся, когда будут в наличии.</div>'}
   else if(tabU==1){S.inv.forEach(function(g){h+=card(g.t,T[g.t].nw?"Обычный":"#"+g.no,sel[g.id],'data-i="'+g.id+'"')});if(!h)h='<div class="empty">Инвентарь пуст. Загляни в «Магазин» или открой бесплатный кейс.</div>';if(API_URL&&S.inv.length)h+='<div style="grid-column:1/-1"><button class="go" id="wdb" style="background:var(--cd2);color:var(--tx)">📤 Вывести выбранный подарок · '+WITHDRAW_FEE+' GRAM</button></div>'}
-  else if(tabU==2){sorted().reverse().forEach(function(i){h+=card(i,"купить",false,'data-b="'+i+'"')})}
+  else if(tabU==2){if(API_URL)h='<div class="empty" style="grid-column:1/-1">Пока здесь нет подарков. Они появятся, когда будут в наличии.</div>';else sorted().reverse().forEach(function(i){h+=card(i,"купить",false,'data-b="'+i+'"')})}
   else{h='<p class="note" style="grid-column:1/-1;margin:0">Обычный подарок попадает в инвентарь: на него можно играть в апгрейде. Вывести и продать его нельзя.</p><p class="note" style="grid-column:1/-1;margin:0 0 6px">Коллекция — самый дешёвый NFT этой коллекции из банка. Его можно вывести, продать или поставить в апгрейд.</p>';
-  STARS.forEach(function(i){h+=scard(i)})}
+  var any=0;STARS.forEach(function(i){if(API_URL&&!T[i].stock)return;any=1;h+=scard(i)});if(API_URL&&!any)h='<div class="empty" style="grid-column:1/-1">Пока здесь нет подарков. Они появятся, когда будут в наличии.</div>'}
   $("gr").innerHTML=h;markDis();
 }
 function go2(m,u){tabM=m;if(u)tabU=u;grid();$("m1").scrollIntoView({behavior:"smooth",block:"start"})}

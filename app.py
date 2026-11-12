@@ -136,6 +136,24 @@ def fail(c, msg):
     return {"ok": False, "error": msg}
 
 # ---------- API ----------
+VENDOR = {"tgsdk.js": "https://telegram.org/js/telegram-web-app.js",
+          "tcui.js": "https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"}
+
+@app.get("/vendor/{name}")
+def vendor(name: str):
+    """Кэширует внешние скрипты на диске сервера и отдаёт их с нашего домена."""
+    if name not in VENDOR: raise HTTPException(404, "no")
+    d = os.path.join(HERE, "vendor_cache"); os.makedirs(d, exist_ok=True)
+    p = os.path.join(d, name)
+    if not os.path.exists(p) or time.time() - os.path.getmtime(p) > 86400:
+        try:
+            r = httpx.get(VENDOR[name], timeout=20, follow_redirects=True); r.raise_for_status()
+            open(p, "wb").write(r.content)
+        except Exception as e:
+            print("vendor:", name, e)
+            if not os.path.exists(p): raise HTTPException(502, "upstream")
+    return FileResponse(p, media_type="application/javascript", headers={"Cache-Control": "public, max-age=3600"})
+
 @app.get("/")
 def index(request: Request):
     """Отдаёт приложение, подставляя адрес сервера и имя бота (из PUBLIC_URL и BOT_USERNAME)."""
@@ -143,6 +161,8 @@ def index(request: Request):
     base = PUBLIC_URL or f"{request.url.scheme}://{request.headers.get('host', '')}"
     html = html.replace('var API_URL="";', 'var API_URL="%s";' % base, 1)
     html = html.replace("ТВОЙ_БОТ", os.environ.get("BOT_USERNAME", "GiftUpNowbot"))
+    for name, url in VENDOR.items():                      # скрипты отдаём со своего сервера (telegram.org и CDN бывают недоступны)
+        html = html.replace(url, "/vendor/" + name)
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 @app.get("/tonconnect-manifest.json")
