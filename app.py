@@ -296,7 +296,7 @@ def state(c, uid):
            c.execute("select * from gifts where owner=? and status='held' and type>=0 order by id desc", (uid,))]
     stock = {r["type"]: r["n"] for r in c.execute(
         "select type, count(*) n from gifts where status='house' and type>=0 group by type")}
-    si = [{"id": r["id"], "t": r["type"], "no": r["number"], "im": r["img"] or ""} for r in
+    si = [{"id": r["id"], "t": r["type"], "no": r["number"], "im": r["img"] or "", "pr": 1 if is_priced(r["type"]) else 0} for r in
           c.execute("select id,type,number,img from gifts where status='house' and type>=0 order by id desc limit 300")]
     hist = [{"t": r["want"], "no": r["no"], "w": r["win"], "ch": r["ch"], "ts": r["ts"], "im": r["img"] or ""} for r in
             c.execute("select h.*, (select g.img from gifts g where g.type=h.want and g.number=h.no and h.no>0 order by g.id desc limit 1) as img "
@@ -670,6 +670,36 @@ def api_sell(body: dict, x_init_data: str = Header("")):
         st = state(c, uid); c.execute("commit")
         print(f"[{stamp()}] 💱 продано {len(rows)} шт. за {total} GRAM → {uid}", flush=True)
         return {"ok": True, "sold": len(rows), "amount": total, "state": st}
+    except Exception:
+        try: c.execute("rollback")
+        except Exception: pass
+        raise
+    finally: c.close()
+
+@app.post("/api/buy")
+def api_buy(body: dict, x_init_data: str = Header("")):
+    """Выкуп NFT со склада за GRAM с баланса: {"ids":[id подарков со склада]} → подарки уходят в инвентарь игрока."""
+    usr = check_init(x_init_data); uid = usr["id"]
+    if not hit(f"buy:{uid}", 15, 60): return {"ok": False, "error": "Слишком часто, подожди немного"}
+    try: ids = sorted({int(i) for i in (body.get("ids") or [])})
+    except Exception: return {"ok": False, "error": "Неверный запрос"}
+    if not ids or len(ids) > 60: return {"ok": False, "error": "Выберите от 1 до 60 подарков"}
+    c = db()
+    try:
+        c.execute("begin immediate")
+        u = get_user(c, uid, usr.get("first_name", ""))
+        rows = c.execute(f"select * from gifts where status='house' and type>=0 and id in ({','.join('?' * len(ids))})", ids).fetchall()
+        if len(rows) != len(ids): return fail(c, "Некоторые подарки уже недоступны. Обновите список")
+        for g in rows:
+            if CAT[g["type"]].get("nw"): return fail(c, "Этот подарок нельзя купить")
+            if not is_priced(g["type"]): return fail(c, "Подарок ещё оценивается, попробуйте позже")
+        total = round(sum(CAT[g["type"]]["price"] for g in rows), 4)
+        if u["bal"] + 1e-9 < total: return fail(c, "Недостаточно средств")
+        c.execute("update users set bal=bal-? where id=?", (total, uid))
+        for g in rows: c.execute("update gifts set status='held', owner=? where id=?", (uid, g["id"]))
+        st = state(c, uid); c.execute("commit")
+        print(f"[{stamp()}] 🛒 куплено {len(rows)} шт. за {total} GRAM → {uid}", flush=True)
+        return {"ok": True, "bought": len(rows), "amount": total, "state": st}
     except Exception:
         try: c.execute("rollback")
         except Exception: pass
