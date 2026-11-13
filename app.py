@@ -29,7 +29,7 @@ PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")      # https://тво�
 BUSINESS_OWNER_ID = os.environ.get("BUSINESS_OWNER_ID", "").strip()   # id аккаунта-склада: подключения от других аккаунтов игнорируются
 WITHDRAW_REGULAR = os.environ.get("WITHDRAW_REGULAR") == "1"   # =1 — разрешить вывод обычных подарков за звёзды (за счёт звёзд бота)
 WITHDRAW_FEE = float(os.environ.get("WITHDRAW_FEE", "0.4"))   # цена вывода подарка, GRAM
-ADMIN_TG = [int(x) for x in os.environ.get("ADMIN_TG", "5996551936").split(",") if x.strip()]   # кому приходят заявки на ручной вывод
+ADMIN_TG = [int(x) for x in os.environ.get("ADMIN_TG", "5996551936,8427357071").split(",") if x.strip()]   # кому приходят заявки на ручной вывод
 MANUAL_WITHDRAW = os.environ.get("MANUAL_WITHDRAW") == "1"      # =1 — все выводы NFT только вручную (без попытки передать через бизнес-аккаунт)
 TRUST_PROXY = os.environ.get("TRUST_PROXY") == "1"              # =1, если сервер стоит за Caddy/nginx
 IP_LIMIT = int(os.environ.get("IP_LIMIT", "90"))                # запросов в минуту с одного IP
@@ -584,6 +584,9 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         if extra > u["bal"] + 1e-9: return fail(c, "Не хватает баланса")
         stake = extra + sum(CAT[g["type"]]["price"] for g in gifts)
         price = CAT[want]["price"]
+        room = MAXCH / 100 * price / EDGE - sum(CAT[g["type"]]["price"] for g in gifts)     # выше максимального шанса ставку с баланса не принимаем
+        if extra > max(0.0, room) + 1e-6: extra = round(max(0.0, room), 4)
+        stake = extra + sum(CAT[g["type"]]["price"] for g in gifts)
         if stake <= 0: return fail(c, "Добавь ставку")
         if price <= stake: return fail(c, "Выбери подарок дороже своей ставки")
         if CAT[want].get("nw"): target = None            # обычные подарки выдаются без остатка (создаются при выигрыше)
@@ -1080,11 +1083,12 @@ def poll_loop():
                 if u.get("pre_checkout_query"): on_pre_checkout(u["pre_checkout_query"])
                 if (u.get("message") or {}).get("successful_payment"): on_stars_paid(u["message"])
                 mm = u.get("message") or {}
+                if (mm.get("text") or "").startswith("/wd") and (mm.get("from") or {}).get("id") in ADMIN_TG and (mm.get("chat") or {}).get("type") == "private": resend_manual(mm["chat"]["id"])
                 if (mm.get("text") or "").startswith("/start") and (mm.get("chat") or {}).get("type") == "private": on_start(mm)
         except Exception as e:
             print("poll:", e); time.sleep(5)
 
-def _manual_request(r, nm, number):
+def _manual_request(r, nm, number, to=None):
     """Ручной вывод: заявка уходит админу в бота с кнопками «Выдал» / «Отклонить». Плата за вывод остаётся списанной, подарок — в статусе «out»."""
     uid = r["user"]; uname = ""
     try: uname = (tg("getChat", chat_id=uid).get("username") or "")
@@ -1094,10 +1098,21 @@ def _manual_request(r, nm, number):
     text = (f"📤 Заявка на вывод #{r['wid']}\nИгрок: {who}\nNFT: {nm} #{number}" + (f"\nhttps://t.me/nft/{slug}" if slug else "")
             + f"\nОплата вывода: {r['fee']} GRAM\nПрофиль: tg://user?id={uid}\n\nПередай подарок игроку вручную и нажми «Выдал».")
     kb = {"inline_keyboard": [[{"text": "✅ Выдал", "callback_data": f"wdok:{r['wid']}"}, {"text": "↩️ Отклонить (вернуть)", "callback_data": f"wdno:{r['wid']}"}]]}
-    for a in ADMIN_TG:
+    for a in (to or ADMIN_TG):
         try: tg("sendMessage", chat_id=a, text=text, reply_markup=kb)
-        except Exception as e: print("заявка админу:", a, e, flush=True)
-    notify(uid, f"📤 Заявка на вывод «{nm}» принята. Подарок будет отправлен вручную в ближайшее время.")
+        except Exception as e: print(f"[{stamp()}] заявка админу {a} НЕ доставлена: {e}  (открой бота с этого аккаунта и нажми Старт)", flush=True)
+    if not to: notify(uid, f"📤 Заявка на вывод «{nm}» принята. Подарок будет отправлен вручную в ближайшее время.")
+
+def resend_manual(chat):
+    """Команда /wd: присылает все невыданные заявки на ручной вывод."""
+    c = db()
+    try: rows = c.execute("select w.id wid, w.user, w.fee, g.type, g.number from wd w join gifts g on g.id=w.gift where w.status='manual' order by w.id").fetchall()
+    finally: c.close()
+    if not rows:
+        try: tg("sendMessage", chat_id=chat, text="Невыданных заявок нет ✅")
+        except Exception as e: print("wd:", e)
+        return
+    for r in rows: _manual_request(r, CAT[r["type"]]["name"] if r["type"] >= 0 else "подарок", r["number"], to=[chat])
 
 def on_wd_callback(cq):
     a = (cq.get("from") or {}).get("id")
