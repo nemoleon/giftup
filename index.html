@@ -16,7 +16,7 @@ button{font:inherit;color:inherit;border:0;cursor:pointer}
 .wlp{display:flex;align-items:center;gap:10px;height:46px;padding:0 14px 0 5px;border-radius:23px;background:#17121a;color:#fff;font:600 16px/1 inherit;border:0}
 .wlp .wi{width:36px;height:36px;border-radius:50%;background:linear-gradient(145deg,#ff8cc4,#ff4fa0);display:flex;align-items:center;justify-content:center;flex:none}
 .wlp .wd{color:#8d7d88;display:flex;margin-left:2px}
-.wlp.off{background:#ff4fa0;color:#1a0b13;padding:0 18px;font-weight:700}
+.wlp.off{white-space:nowrap;padding:0 14px 0 5px;gap:8px;font-size:15px}
 .crn{width:44px;height:44px;border-radius:50%;background:var(--cd2);display:flex;align-items:center;justify-content:center;font-size:20px}
 .vp2{background:var(--cd2);border-radius:22px;padding:10px 16px;font-weight:800;color:var(--ac);display:flex;align-items:center;gap:6px}
 .bgi{display:flex;justify-content:center;padding:14px 0 6px}.bgi img{width:150px;height:150px;object-fit:contain;filter:drop-shadow(0 0 28px rgba(255,79,160,.55));border-radius:24px}
@@ -77,15 +77,15 @@ input[type=range]{-webkit-appearance:none;appearance:none;height:12px;border-rad
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.5)}
 input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;background:#fff;border:0}
 .cd.dis{opacity:.3;filter:grayscale(.8)}
-.win{position:fixed;inset:0;z-index:20;background:#0d0d10;display:none;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+.win{position:fixed;inset:0;z-index:20;background:#0d0d10;display:none;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:calc(var(--ti) + 78px) 0 150px;box-sizing:border-box}
 .win.show{display:flex;animation:fi .3s}@keyframes fi{from{opacity:0}to{opacity:1}}
 @keyframes spn{to{transform:rotate(360deg)}}@keyframes pop{0%{transform:scale(.3) rotate(-10deg);opacity:0}70%{transform:scale(1.08) rotate(2deg)}100%{transform:scale(1);opacity:1}}
 .rays{position:absolute;left:50%;top:45%;width:160vmax;height:160vmax;margin:-80vmax 0 0 -80vmax;background:repeating-conic-gradient(rgba(255,214,0,.62) 0 4deg,transparent 4deg 14deg);-webkit-mask:radial-gradient(circle closest-side,#000 0,transparent 50%);mask:radial-gradient(circle closest-side,#000 0,transparent 50%);animation:spn 30s linear infinite}
-.wc{position:relative;z-index:2;text-align:center;margin-top:-40px}
-.wp{display:inline-flex;align-items:center;gap:7px;background:#1b1b1f;border-radius:30px;padding:6px 16px 6px 6px;margin-top:30px;font-size:23px;font-weight:800;color:#ffcf1f;margin-bottom:14px;animation:pop .6s cubic-bezier(.2,1.2,.3,1) both}.wp .coin{width:36px;height:36px;box-shadow:none;background:#ffcf1f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6.6 3.5h10.8l4.1 5.6L12 21 2.5 9.1z' fill='%231b1b1f'/%3E%3Cpath d='M12 8.6l1.1 2.3 2.3 1.1-2.3 1.1L12 15.4l-1.1-2.3L8.6 12l2.3-1.1z' fill='%23ffcf1f'/%3E%3C/svg%3E") center/76% no-repeat}
-#wim{display:block;width:min(74vw,340px,40vh);height:min(74vw,340px,40vh);border-radius:21%;object-fit:cover;margin:0 auto;image-rendering:auto;animation:pop .7s cubic-bezier(.2,1.2,.3,1) both}
+.wc{position:relative;z-index:2;text-align:center;margin-top:0}
+.wp{display:inline-flex;align-items:center;gap:7px;background:#1b1b1f;border-radius:30px;padding:6px 16px 6px 6px;margin-top:0;font-size:23px;font-weight:800;color:#ffcf1f;margin-bottom:14px;animation:pop .6s cubic-bezier(.2,1.2,.3,1) both}.wp .coin{width:36px;height:36px;box-shadow:none;background:#ffcf1f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6.6 3.5h10.8l4.1 5.6L12 21 2.5 9.1z' fill='%231b1b1f'/%3E%3Cpath d='M12 8.6l1.1 2.3 2.3 1.1-2.3 1.1L12 15.4l-1.1-2.3L8.6 12l2.3-1.1z' fill='%23ffcf1f'/%3E%3C/svg%3E") center/76% no-repeat}
+#wim{display:block;width:min(74vw,340px,36vh);height:min(74vw,340px,36vh);border-radius:21%;object-fit:cover;margin:0 auto;image-rendering:auto;animation:pop .7s cubic-bezier(.2,1.2,.3,1) both}
 #wn{font-size:32px;font-weight:600;margin-top:14px}#wno{color:#8f8a78;font-size:26px}
-.wx{position:absolute;z-index:2;top:calc(70px + var(--ti));left:50%;margin-left:-28px;width:56px;height:56px;border-radius:50%;background:#18181c;font-size:24px}
+.wx{position:absolute;z-index:2;top:calc(10px + var(--ti));left:50%;margin-left:-26px;width:52px;height:52px;border-radius:50%;background:#18181c;font-size:24px}
 .wb{position:absolute;z-index:2;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px}.wb .go{padding:18px;background:linear-gradient(#ffd21a,#ffbf00);color:#000;border-radius:30px}.wb .go2{padding:18px;border-radius:30px;background:#1b1b20}
 .wb .go3{padding:14px;border-radius:22px;background:transparent;border:2px solid var(--ac);color:var(--ac);font-weight:800;font-size:17px}.wb .go3[disabled]{opacity:.5}
 .wb .go2{padding:14px;border-radius:22px;background:var(--cd);font-weight:700;font-size:17px}
@@ -211,7 +211,7 @@ requestAnimationFrame(frame)})();
 <circle id="arc" cx="100" cy="100" r="80" fill="none" stroke="var(--ac)" stroke-width="18" stroke-dasharray="0 600"/>
 <circle cx="100" cy="100" r="62" fill="none" stroke="#201219" stroke-width="2"/>
 <g fill="#55555f" font-size="8" font-weight="700" text-anchor="middle"><text x="100" y="-4">100%</text><text x="-14" y="103">50%</text><text x="214" y="103">50%</text><text x="100" y="212">0%</text></g>
-<g id="ptr" style="transform-origin:100px 100px;transition:transform 5.6s cubic-bezier(.12,.7,.1,1)">
+<g id="ptr" style="transform-origin:100px 100px;transition:transform 7.5s cubic-bezier(.12,.7,.1,1)">
 <line x1="100" y1="166" x2="100" y2="194" stroke="#ffe3f1" stroke-width="2.5" stroke-linecap="round"/></g></svg><div class="mid" id="mid"></div></div>
 <div class="slots">
 <div class="slot" id="s1"><div class="mc" id="s1c"></div><div class="t" id="s1t"></div></div>
@@ -551,7 +551,7 @@ $("go").onclick=function(){
   var roll=Math.random()*100;spin(roll,Math.abs(roll-50)<ch/2,w,ex,null,null);
 };
 function spin(roll,win,w,ex,gift,st){
-  var dur=fast?1200:5600;
+  var dur=fast?1200:7500;
   rot=Math.ceil(rot/360)*360+(fast?720:1800)+(roll-50)*3.6;
   $("ptr").style.transition="transform "+dur+"ms cubic-bezier(.12,.7,.1,1)";$("ptr").style.transform="rotate("+rot+"deg)";
   say("Крутим…");
@@ -605,7 +605,7 @@ var WI='<svg viewBox="0 0 24 24" width="20" height="20" fill="#1a0b13"><path d="
 var WU='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14l4-4M8.5 11.5L6.7 13.3a3.2 3.2 0 0 0 4.5 4.5l1.8-1.8M15.5 12.5l1.8-1.8a3.2 3.2 0 0 0-4.5-4.5L11 8M4 4l2 2M20 20l-2-2M4 9h2M18 15h2"/></svg>';
 function wlRender(){wlFill($("wl"));if($("dgw"))wlFill($("dgw"))}
 function wlFill(b){if(!b)return;var acc=tc&&tc.wallet&&tc.wallet.account;
-  if(!acc){b.className="wlp off";b.innerHTML="Подключить кошелёк";return}
+  if(!acc){b.className="wlp off";b.innerHTML='<span class="wi">'+WI+'</span><span>Подключить кошелёк</span>';return}
   var a=wlFriendly(acc.address);b.className="wlp";b.innerHTML='<span class="wi">'+WI+'</span><span>'+a.slice(0,5)+"…"+a.slice(-5)+'</span><span class="wd">'+WU+'</span>'}
 function openDep(){api("/api/deposit",{}).then(function(d){
   if(!d.ok){say(d.error,"var(--bad)");return}
