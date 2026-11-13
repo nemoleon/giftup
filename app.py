@@ -385,6 +385,10 @@ def state(c, uid):
     hist = [{"t": r["want"], "no": r["no"], "w": r["win"], "ch": r["ch"], "ts": r["ts"], "im": r["img"] or ""} for r in
             c.execute("select h.*, (select g.img from gifts g where g.type=h.want and g.number=h.no and h.no>0 order by g.id desc limit 1) as img "
                       "from hist h where h.user=? order by h.id desc limit 150", (uid,))]
+    wdn = 0.0
+    for r_ in c.execute("select type from gifts where owner=? and status='out'", (uid,)):
+        try: wdn += float(CAT[r_["type"]].get("price") or 0) if 0 <= r_["type"] < len(CAT) else 0
+        except Exception: pass
     bg = c.execute("select want t, no, ch, price pr from hist where user=? and win=1 order by price desc, id desc limit 1", (uid,)).fetchone()
     if bg:
         bg = dict(bg); gi_ = c.execute("select img from gifts where type=? and number=? and img is not null order by id desc limit 1", (bg["t"], bg["no"])).fetchone() if bg["no"] else None
@@ -392,7 +396,7 @@ def state(c, uid):
     return {"nwwd": WITHDRAW_REGULAR, "custom": [{"t": i, "n": x["name"], "v": x["price"], "m": x.get("model", "")} for i, x in enumerate(CAT) if x.get("custom")],
             "stock_items": si, "hist": hist,
             "topups": [{"ts": r["ts"], "a": r["amount"], "k": r["kind"], "r": r["ref"]} for r in c.execute("select * from topup where user=? order by id desc limit 100", (uid,))], "bg": bg or None,
-            "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
+            "wdn": wdn, "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
             "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "ref": {"n": c.execute("select count(*) from users where ref_by=?", (uid,)).fetchone()[0], "e": round(u["ref_earn"] or 0, 4), "l": ref_link(uid), "pct": int(REF_PCT * 100)}, "spg": STARS_PER_GRAM, "smin": STARS_MIN, "online": online_count(), "owner": owner_username(),
             "total": c.execute("select coalesce(sum(boosts),0) from users").fetchone()[0]}
 
