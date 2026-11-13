@@ -850,6 +850,21 @@ def api_import(x_admin_key: str = Header("")):
         return {"ok": True, "added": n, "custom_types": [{"id": i, "name": x["name"], "model": x.get("model"), "price": x["price"]} for i, x in enumerate(CAT) if x.get("custom")]}
     except Exception as e: return {"ok": False, "error": str(e)}
 
+@app.post("/api/admin/clear")
+def api_clear(body: dict = None, x_admin_key: str = Header("")):
+    """Убирает «старые» NFT со склада приложения (на аккаунте они остаются). {"keep":["Myth Mask"]} — эти оставить. {} — убрать все."""
+    if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
+    keep = {_norm(k) for k in ((body or {}).get("keep") or [])}
+    c = db(); n = 0
+    try:
+        for r in c.execute("select id,type from gifts where status in ('house','unknown')").fetchall():
+            t = r["type"]
+            if keep and 0 <= t < len(CAT) and _norm(CAT[t].get("key") or CAT[t]["name"]) in keep: continue
+            c.execute("update gifts set status='gone' where id=?", (r["id"],)); n += 1
+    finally: c.close()
+    print(f"[{stamp()}] склад очищен: убрано {n}", flush=True)
+    return {"ok": True, "removed": n}
+
 @app.get("/api/admin/types")
 def api_types(x_admin_key: str = Header("")):
     """Список автоматически добавленных NFT: цена и подтверждена ли она."""
