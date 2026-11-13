@@ -107,6 +107,15 @@ def load_custom():
             CAT.append({"id": len(CAT), "key": r["key"], "model": r["model"] or "", "name": r["name"], "price": r["price"], "custom": r["id"], "fixed": bool(r["fixed"]), "priced": bool(r["psrc"] or r["fixed"])})
     finally: c.close()
 
+BLACK_SFX = " · Black"
+BLACK_PRICE = float(os.environ.get("BLACK_PRICE", "27"))    # минимальная цена NFT с чёрным фоном, GRAM
+
+def gift_model(g):
+    """Имя модели; у NFT с чёрным фоном добавляется суффикс — это отдельный тип с повышенной ценой."""
+    m = ((g.get("model") or {}).get("name") or "").strip()
+    if ((g.get("backdrop") or {}).get("name") or "").strip().lower() == "black": m += BLACK_SFX
+    return m
+
 def ensure_type(base, model):
     """Находит или создаёт тип для NFT, которого нет в каталоге. Возвращает индекс в CAT."""
     base = (base or "").strip(); model = (model or "").strip()
@@ -114,12 +123,13 @@ def ensure_type(base, model):
     with _cat_lock:
         for i, x in enumerate(CAT):
             if x.get("custom") and (x["key"] or "").lower() == base.lower() and (x.get("model") or "").lower() == model.lower(): return i
-        known = next((x["price"] for x in CAT if (x.get("key") or "").lower() == base.lower() and not x.get("nw")), None)
+        known = next((x["price"] for x in CAT if (x.get("key") or "").lower() == base.lower() and not x.get("nw") and not (x.get("model") or "").endswith(BLACK_SFX)), None)
         price = known if known is not None else DEFAULT_NFT_PRICE
+        if model.endswith(BLACK_SFX): price = max(price if known is not None else 0, BLACK_PRICE)
         c = db()
         try: cid = c.execute("insert into custom(key,model,name,price) values(?,?,?,?)", (base, model, base, price)).lastrowid
         finally: c.close()
-        CAT.append({"id": len(CAT), "key": base, "model": model, "name": base, "price": price, "custom": cid, "priced": known is not None})
+        CAT.append({"id": len(CAT), "key": base, "model": model, "name": base, "price": price, "custom": cid, "priced": known is not None or model.endswith(BLACK_SFX)})
         print(f"[{stamp()}] ➕ новый тип NFT: {base} / {model}, цена {price} GRAM (поменять: /api/admin/price)", flush=True)
         return len(CAT) - 1
 
@@ -224,6 +234,11 @@ _ga = {"t": 0.0, "cache": {}, "warn": 0}
 _ga_lock = threading.Lock()
 
 def ga_floor(name, model):
+    bd = bool(model) and str(model).endswith(BLACK_SFX)
+    v = _ga_floor_raw(name, (str(model)[:-len(BLACK_SFX)] if bd else model))
+    return max(v or 0, BLACK_PRICE) if bd else v
+
+def _ga_floor_raw(name, model):
     """Цена модели (минимум по маркетам) из Gift Asset API, TON. Нет данных -> None. Результат по коллекции кэшируется на 15 минут."""
     if not GAKEY or not name: return None
     key = name.lower()
@@ -264,6 +279,7 @@ def auto_price(t, base, number):
             try: v = tg_floor_ton(slug)                         # 1) нижняя цена на маркете Telegram
             except Exception as e: print("маркет:", slug, e, flush=True)
             if v is None: v = tg_value_ton(slug)                # 2) «Ценность» из карточки подарка
+        if str(x.get("model") or "").endswith(BLACK_SFX) and v is not None: v = max(v, BLACK_PRICE)
         if v is None: return
         with _cat_lock: x["price"] = v; x["vp"] = True; x["priced"] = True
         c = db()
@@ -821,7 +837,7 @@ def match(base, model):
     for i, x in enumerate(CAT):
         if not x["key"] or x["key"].lower() != base: continue
         if x.get("model") and x["model"].lower() == model: return i
-        if not x.get("model") and best < 0: best = i
+        if not x.get("model") and best < 0 and not model.endswith(BLACK_SFX.lower()): best = i
     return best
 
 def stamp(): return datetime.datetime.now().strftime("%d.%m %H:%M:%S")
@@ -848,8 +864,8 @@ def on_message(m):
     print(f"[{stamp()}] 🎁 ПОЛУЧЕН NFT от {who}: {g.get('base_name')} #{g.get('number')}, модель {(g.get('model') or {}).get('name')}, "
           f"owned_gift_id={ogid}, origin={ug.get('origin')}", flush=True)
     if not ogid: print("нет owned_gift_id", ug, flush=True); return
-    t = match(g.get("base_name"), (g.get("model") or {}).get("name"))
-    if t < 0: t = ensure_type(g.get("base_name"), (g.get("model") or {}).get("name"))
+    t = match(g.get("base_name"), gift_model(g))
+    if t < 0: t = ensure_type(g.get("base_name"), gift_model(g))
     house = sender in HOUSE_IDS
     status = "unknown" if t < 0 else ("house" if house else "held")
     c = db()
@@ -897,8 +913,8 @@ def import_stock(restore=False):
             g = og.get("gift", {}); ogid = og.get("owned_gift_id")
             if not ogid: continue
             n_all += 1; seen.add(ogid)
-            t = match(g.get("base_name"), (g.get("model") or {}).get("name"))
-            if t < 0: t = ensure_type(g.get("base_name"), (g.get("model") or {}).get("name"))
+            t = match(g.get("base_name"), gift_model(g))
+            if t < 0: t = ensure_type(g.get("base_name"), gift_model(g))
             c = db()
             try:
                 cur = c.execute("insert or ignore into gifts(type,number,ogid,owner,status) values(?,?,?,?,?)",
