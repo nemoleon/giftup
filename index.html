@@ -140,8 +140,8 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 .srch{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:44px;border-radius:22px;background:var(--cd2);color:var(--mut);padding:0 12px}.srch input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--tx);font:inherit;font-size:15px}.srch input::placeholder{color:var(--mut)}
 .tot{display:flex;align-items:center;gap:5px;height:44px;border-radius:22px;background:var(--cd2);color:var(--mut);padding:0 12px;font-size:12px;line-height:1.1;white-space:nowrap}.tot b{color:var(--tx);font-size:16px}
 .ghostw{grid-column:1/-1;position:relative;min-height:330px;overflow:hidden;border-radius:18px}.ghostw .gg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;filter:blur(7px) brightness(.55);pointer-events:none}.ghostw .gg .cd{height:120px}
-.ghostw .ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;gap:14px;font-weight:600;font-size:17px;line-height:1.3}.ghostw .ov a{color:var(--ac)}
-.ghostw .ov button{background:linear-gradient(180deg,#ff8cc4,#ff4fa0);color:#1a0a12;font-weight:800;font-size:18px;border-radius:30px;padding:14px 46px}
+.ghostw .gpg{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;margin-top:4px}.ghostw .gpg button{pointer-events:auto;width:46px;height:46px;border-radius:50%;background:var(--cd2);color:#fff;font-size:24px}.ghostw .gpg span{font-weight:700;font-size:17px}.ghostw .ov{pointer-events:none;position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;gap:14px;font-weight:600;font-size:17px;line-height:1.3}.ghostw .ov a{color:var(--ac)}
+.ghostw .ov a,.ghostw .ov button{pointer-events:auto}.ghostw .ov button{background:linear-gradient(180deg,#ff8cc4,#ff4fa0);color:#1a0a12;font-weight:800;font-size:18px;border-radius:30px;padding:14px 46px}
 .empty{grid-column:1/-1;color:var(--mut);text-align:center;padding:20px}
 .card{background:var(--cd);border-radius:20px;padding:14px;margin-bottom:10px}
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -313,7 +313,7 @@ function applyState(st){S.bal=st.bal;S.boosts=st.boosts;S.online=st.online;S.tot
   (st.custom||[]).forEach(function(x){T[x.t]={n:x.n,v:x.v,ok:1,custom:1};IM[x.t]=PH;KEYS[x.t]=x.n});
   st.prices.forEach(function(p,i){if(T[i]){T[i].v=p;T[i].ok=1}});T.forEach(function(t,i){t.stock=st.stock[i]||0})}
 function sync(){if(!API_URL)return Promise.resolve();return api("/api/state").then(function(st){mtFail=0;mtSet(false);if(st&&st.inv){applyState(st);render();if(!busy)grid()}}).catch(function(){mtFail++;if(mtFail>=2||!spReady)mtSet(true);say("Нет связи с сервером","var(--bad)")})}
-var sortDesc=true,qry="",sel={},want=null,wantG=0,pcts=0,busy=false,rot=0,tabM=1,tabU=1,fast=false,hap=true;
+var ghostPg=0,sortDesc=true,qry="",sel={},want=null,wantG=0,pcts=0,busy=false,rot=0,tabM=1,tabU=1,fast=false,hap=true;
 function extra(){return S.bal*pcts/100}
 function gem(){return '<span class="gem"></span>'}
 function stake(){var s=extra();S.inv.forEach(function(g){if(sel[g.id])s+=T[g.t].v});return s}
@@ -396,7 +396,9 @@ function grid(){
     if(!h)h='<div class="empty" style="grid-column:1/-1">'+((S.si||[]).length||!API_URL?'Ничего не найдено':'Пока здесь нет подарков. Они появятся, когда будут в наличии.')+'</div>';wishBar(wpages)}
   else if(tabU==1){var ql=qry.trim().toLowerCase(),list=S.inv.slice().sort(function(x,y){return sortDesc?T[y.t].v-T[x.t].v:T[x.t].v-T[y.t].v}).filter(function(g){return !ql||(T[g.t].n+" "+(KEYS[g.t]||"")).toLowerCase().indexOf(ql)>=0});
     list.forEach(function(g){h+=card(g.t,T[g.t].nw?"Обычный":"#"+g.no,sel[g.id],'data-i="'+g.id+'"',gi(g))});
-    if(!S.inv.length){var gh="";[14,16,18,21,19,7].forEach(function(i){gh+=card(i,"",false,'tabindex="-1"')});h='<div class="ghostw"><div class="gg">'+gh+'</div><div class="ov"><div>Пустой инвентарь? Отправь подарки <a>@'+(S.owner||"владельцу")+'</a> и начинай буст.</div><button id="sendb">Отправить</button></div></div>'}
+    if(!S.inv.length){var gh="",GL=(S.si||[]).filter(function(x){return T[x.t]&&!T[x.t].nw}).sort(function(a,b){return T[b.t].v-T[a.t].v||a.no-b.no});
+      if(GL.length){var gpn=Math.max(1,Math.ceil(GL.length/6));if(ghostPg>=gpn)ghostPg=gpn-1;if(ghostPg<0)ghostPg=0;GL.slice(ghostPg*6,ghostPg*6+6).forEach(function(x){gh+=card(x.t,"#"+x.no,false,'tabindex="-1"',gi(x))});gh+='<div class="gpg"><button data-gp="-1"'+(ghostPg<=0?' disabled':'')+' aria-label="Назад">‹</button><span>'+(ghostPg+1)+' из '+gpn+'</span><button data-gp="1"'+(ghostPg>=gpn-1?' disabled':'')+' aria-label="Вперёд">›</button></div>'}
+      else[14,16,18,21,19,7].forEach(function(i){gh+=card(i,"",false,'tabindex="-1"')});h='<div class="ghostw"><div class="gg">'+gh+'</div><div class="ov"><div>Пустой инвентарь? Отправь подарки <a>@'+(S.owner||"владельцу")+'</a> и начинай буст.</div><button id="sendb">Отправить</button></div></div>'}
     else if(!h)h='<div class="empty">Ничего не найдено</div>';
   }
   else if(tabU==2){if(API_URL){cartPrune();var SL=shopList(),pages=Math.max(1,Math.ceil(SL.length/SHP));if(shopPg>=pages)shopPg=pages-1;if(shopPg<0)shopPg=0;
@@ -418,9 +420,10 @@ $("csx").onclick=cartClose;$("csc").onclick=cartClose;$("cs").onclick=function(e
 $("csa").onclick=function(){cart={};cartClose();grid()};$("csb").onclick=function(){cartBuy(this)};
 $("csl").onclick=function(e){var b=e.target.closest("button[data-cr]");if(!b)return;delete cart[b.dataset.cr];if(!cartItems().length)cartClose();else renderCart();grid()};
 $("u1").onclick=function(){tabU=1;grid()};$("u2").onclick=function(){tabU=2;grid()};$("u3").onclick=function(){tabU=3;grid()};
-$("srt").onclick=function(){sortDesc=!sortDesc;grid();say(sortDesc?"Сначала дорогие":"Сначала дешёвые")};
+$("srt").onclick=function(){sortDesc=!sortDesc;grid()};
 $("q").oninput=function(){qry=this.value;grid()};
 $("gr").onclick=function(e){
+  var gpb=e.target.closest&&e.target.closest("[data-gp]");if(gpb){if(!gpb.disabled){ghostPg+=parseInt(gpb.dataset.gp,10);grid()}return}
   if(e.target.id==="sendb"){if(S.owner&&tg&&tg.openTelegramLink){tg.openTelegramLink("https://t.me/"+S.owner)}else if(S.owner){window.open("https://t.me/"+S.owner,"_blank")}else say("Контакт владельца ещё не настроен","var(--bad)");return}
   if(e.target.id==="wdb"){var ids=S.inv.filter(function(g){return sel[g.id]});if(ids.length!==1){say("Выбери ровно один подарок для вывода","var(--bad)");return}if(!T[ids[0].t].nw&&S.bal+1e-9<WITHDRAW_FEE){say("Для вывода нужно "+WITHDRAW_FEE+" GRAM на балансе","var(--bad)");return}
     api("/api/withdraw",{id:ids[0].id}).then(function(r){if(r.ok){var nwg=T[ids[0].t].nw;applyState(r.state);sel={};render();grid();say(nwg?"🎁 Подарок отправлен вам в Telegram":"Заявка принята, списано "+WITHDRAW_FEE+" GRAM — подарок придёт в Telegram","var(--ok)")}else say(r.error,"var(--bad)")});return}
