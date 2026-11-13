@@ -758,6 +758,12 @@ def stamp(): return datetime.datetime.now().strftime("%d.%m %H:%M:%S")
 def on_message(m):
     fr = m.get("from") or {}
     who = f"{fr.get('id')} @{fr.get('username', '-')} {fr.get('first_name', '')}".strip()
+    cid = m.get("business_connection_id")
+    if cid and BUSINESS_OWNER_ID and str(fr.get("id")) == BUSINESS_OWNER_ID and cid != meta_get("bc"):
+        # сообщение отправил сам аккаунт-склад → это его подключение: запоминаем и забираем подарки
+        meta_set("bc", cid); meta_set("bc_owner", BUSINESS_OWNER_ID)
+        print(f"[{stamp()}] подключение склада определено по сообщению: {cid[:8]}…", flush=True)
+        threading.Thread(target=lambda: import_stock(), daemon=True).start()
     ug = m.get("unique_gift")
     if m.get("gift") and not ug:
         print(f"[{stamp()}] 🎁 ПОЛУЧЕН обычный подарок от {who} (в игре не используется)", flush=True)
@@ -808,7 +814,7 @@ def on_start(m):
         tg("sendMessage", **p)
     except Exception as e: print("start:", e)
 
-def import_stock():
+def import_stock(restore=False):
     """Забирает NFT, которые уже лежат на аккаунте владельца, в «склад» (то, что пришло до подключения бота, событием не приходит)."""
     bc = meta_get("bc")
     if not bc: print("импорт склада: нет бизнес-подключения", flush=True); return 0
@@ -829,6 +835,8 @@ def import_stock():
                 row = c.execute("select * from gifts where ogid=?", (ogid,)).fetchone()
                 if row and row["type"] < 0 and t >= 0 and row["status"] == "unknown":     # раньше не распознавался — чиним
                     c.execute("update gifts set type=?, status='house', owner=null where id=?", (t, row["id"]))
+                if restore and row and row["status"] == "gone" and t >= 0:      # раньше «очищен», но подарок всё ещё в профиле — возвращаем на склад
+                    c.execute("update gifts set status='house', owner=null where id=?", (row["id"],)); n_new += 1
                 need_img = bool(row) and not row["img"]
             finally: c.close()
             need_pr = t >= 0 and CAT[t].get("custom") and not CAT[t].get("fixed") and not CAT[t].get("vp") and _ub["cl"] is not None
@@ -843,10 +851,10 @@ def import_stock():
     return n_new
 
 @app.post("/api/admin/import")
-def api_import(x_admin_key: str = Header("")):
+def api_import(body: dict = None, x_admin_key: str = Header("")):
     if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
     try:
-        n = import_stock()
+        n = import_stock(restore=bool((body or {}).get("restore")))
         return {"ok": True, "added": n, "custom_types": [{"id": i, "name": x["name"], "model": x.get("model"), "price": x["price"]} for i, x in enumerate(CAT) if x.get("custom")]}
     except Exception as e: return {"ok": False, "error": str(e)}
 
