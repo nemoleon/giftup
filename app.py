@@ -818,14 +818,14 @@ def import_stock(restore=False):
     """Забирает NFT, которые уже лежат на аккаунте владельца, в «склад» (то, что пришло до подключения бота, событием не приходит)."""
     bc = meta_get("bc")
     if not bc: print("импорт склада: нет бизнес-подключения", flush=True); return 0
-    n_new = n_all = 0; off = ""
+    n_new = n_all = 0; off = ""; seen = set()
     while True:
         r = tg("getBusinessAccountGifts", business_connection_id=bc, exclude_unique=False, limit=100, **({"offset": off} if off else {}))
         for og in r.get("gifts", []):
             if og.get("type") != "unique": continue
             g = og.get("gift", {}); ogid = og.get("owned_gift_id")
             if not ogid: continue
-            n_all += 1
+            n_all += 1; seen.add(ogid)
             t = match(g.get("base_name"), (g.get("model") or {}).get("name"))
             if t < 0: t = ensure_type(g.get("base_name"), (g.get("model") or {}).get("name"))
             c = db()
@@ -847,6 +847,14 @@ def import_stock(restore=False):
                       + ("" if t >= 0 else "  ⚠ НЕ РАСПОЗНАН (нет в catalog.json)"), flush=True)
         off = r.get("next_offset") or ""
         if not off: break
+    if restore:     # убираем со склада NFT, которых уже нет на аккаунте-складе (остатки от чужого аккаунта и т.п.)
+        c = db(); gone = 0
+        try:
+            for r in c.execute("select id,type,ogid from gifts where status='house'").fetchall():
+                if 0 <= r["type"] < len(CAT) and CAT[r["type"]].get("custom") and r["ogid"] not in seen:
+                    c.execute("update gifts set status='gone' where id=?", (r["id"],)); gone += 1
+        finally: c.close()
+        print(f"[{stamp()}] со склада убрано NFT, которых нет на аккаунте: {gone}", flush=True)
     print(f"[{stamp()}] импорт склада: на аккаунте {n_all} NFT, добавлено {n_new}", flush=True)
     return n_new
 
