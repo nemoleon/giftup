@@ -150,7 +150,7 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 .ln{background:var(--cd2);border-radius:14px;padding:10px;font-size:12px;color:var(--mut);word-break:break-all;margin-top:8px}
 .sm{background:var(--cd2);border-radius:14px;padding:8px 14px;font-weight:600}
 .note{font-size:12px;color:var(--mut);text-align:center;margin-top:10px}
-#sp{position:fixed;inset:0;z-index:99;background:#0f0f11;display:flex;align-items:center;justify-content:center;transition:opacity .5s}
+#sp{display:none!important;position:fixed;inset:0;z-index:99;background:#0f0f11;display:flex;align-items:center;justify-content:center;transition:opacity .5s}
 #sp.out{opacity:0;pointer-events:none}#sp{flex-direction:column;gap:26px}#sp svg{width:min(62vw,300px);height:auto;overflow:visible}
 #spw{transform-origin:320px 320px;animation:spSpin 2.4s cubic-bezier(.22,.7,.2,1) both}
 #spa{animation:spFill 2.2s cubic-bezier(.45,.05,.25,1) .3s both}
@@ -172,7 +172,7 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 <path id="ldt" d="M256 318L276 350H236Z" fill="#ff4fa0" stroke="#ff4fa0" stroke-width="10" stroke-linejoin="round"/></svg>
 <div class="ldp"><span id="ldn">0</span>%<small>Загрузка</small></div><div class="ldb"><i id="ldf"></i></div></div>
 <style>
-#ldr{position:fixed;inset:0;z-index:100000;background:#0f0f11;display:flex;align-items:center;justify-content:center;transition:opacity .4s}
+#ldr{position:fixed;inset:0;z-index:100000;background:#0f0f11;display:flex;align-items:center;justify-content:center;transition:opacity .15s}#ldr>*{display:none!important}
 #ldr svg{width:min(62vw,270px);height:auto;overflow:visible;filter:drop-shadow(0 0 24px rgba(255,79,160,.28))}
 #ldr .ldp{position:absolute;left:0;right:0;bottom:max(46px,env(safe-area-inset-bottom));text-align:center;font-weight:800;font-size:34px;color:#fff;font-variant-numeric:tabular-nums}
 #ldr .ldp small{display:block;margin-top:6px;font-size:13px;font-weight:600;color:#8d8d98}
@@ -181,7 +181,7 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 #ldr .ldb i{display:block;height:100%;width:0;background:#ff4fa0;border-radius:4px}
 </style>
 <script>
-(function(){var cs=[ldc0,ldc1,ldc2],OP=[1,.68,.38],CY=[370,292,214],TY=350,tr=ldt,box=document.getElementById("ldr"),loaded=false,gone=false,t0=null,MIN=2700,MAX=12000;
+(function(){var cs=[ldc0,ldc1,ldc2],OP=[1,.68,.38],CY=[370,292,214],TY=350,tr=ldt,box=document.getElementById("ldr"),loaded=false,gone=false,t0=null,MIN=0,MAX=8000;
 function cl(x){return x<0?0:x>1?1:x}function ez(x){return 1-Math.pow(1-x,3)}function ob(x){var c=1.2;return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)}
 window.ldDone=function(){loaded=true};
 function frame(ts){if(gone)return;if(t0===null)t0=ts;var t=ts-t0,fin=(loaded&&t>=MIN)||t>=MAX;
@@ -189,7 +189,7 @@ function frame(ts){if(gone)return;if(t0===null)t0=ts;var t=ts-t0,fin=(loaded&&t>
   tr.style.transformOrigin="256px 340px";tr.style.transform="scale("+(ez(cl(t/380))*(1+.1*Math.sin(t/150)*(1-cl((t-500)/500))))+")";tr.style.opacity=(1-ez(cl((t-650)/500))).toFixed(3);
   cs.forEach(function(c,i){var s=600+i*480,p=cl((t-s)/950),m=ob(p),e=ez(cl((t-s)/500));
     c.style.transformOrigin="256px "+(CY[i]-10)+"px";c.style.transform="translateY("+((TY-CY[i])*(1-m))+"px) scale("+(.25+.75*m)+")";c.style.opacity=(OP[i]*e).toFixed(3)});
-  if(fin){gone=true;setTimeout(function(){box.style.opacity="0";setTimeout(function(){box.remove()},450)},250);return}
+  if(fin){gone=true;box.style.opacity="0";setTimeout(function(){box.remove()},180);return}
   requestAnimationFrame(frame)}
 requestAnimationFrame(frame)})();
 </script>
@@ -318,7 +318,7 @@ function extra(){return S.bal*pcts/100}
 function gem(){return '<span class="gem"></span>'}
 function stake(){var s=extra();S.inv.forEach(function(g){if(sel[g.id])s+=T[g.t].v});return s}
 function chance(){if(want===null)return 0;return Math.min(95,stake()/T[want].v*100*EDGE)}
-function say(m,c){$("msg").textContent=m;$("msg").style.color=c||""}
+function say(m,c){}   // текстовые уведомления отключены
 function render(){
   if(API_URL&&want!==null&&T[want]&&T[want].nw&&stake()<=0){want=null;wantG=0}
   if(wantG&&!(S.si||[]).some(function(x){return x.id===wantG}))wantG=0;if(want!==null&&!avail(want)){want=null;wantG=0}
