@@ -132,7 +132,7 @@ def save_nft_image(slug):
     fn = re.sub(r"[^A-Za-z0-9_-]", "", slug) + ".jpg"
     path = os.path.join(IMG_DIR, fn)
     if os.path.exists(path) and os.path.getsize(path) > 500: return "/nftimg/" + fn
-    urls = [f"https://nft.fragment.com/gift/{slug.lower()}.medium.jpg"]
+    urls = [f"https://nft.fragment.com/gift/{slug.lower()}.large.jpg", f"https://nft.fragment.com/gift/{slug.lower()}.medium.jpg"]
     try:
         h = httpx.get(f"https://t.me/nft/{slug}", follow_redirects=True, timeout=12, headers={"User-Agent": "Mozilla/5.0"}).text
         m = re.search(r'<meta[^>]+property="og:image"[^>]+content="([^"]*)"', h) or re.search(r'<meta[^>]+content="([^"]*)"[^>]+property="og:image"', h)
@@ -575,6 +575,7 @@ def api_boost(body: dict, x_init_data: str = Header("")):
 
 @app.post("/api/free")
 def api_free(x_init_data: str = Header("")):
+    return {"ok": False, "error": "Недоступно"}   # бесплатный кейс отключён
     usr = check_init(x_init_data); uid = usr["id"]
     if not hit(f"free:{uid}", 5, 60): return {"ok": False, "error": "Слишком часто, подожди немного"}
     c = db()
