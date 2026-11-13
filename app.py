@@ -637,7 +637,7 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         if extra > u["bal"] + 1e-9: return fail(c, "Не хватает баланса")
         stake = extra + sum(CAT[g["type"]]["price"] for g in gifts)
         price = CAT[want]["price"]
-                room = MAXCH / 100 * price - sum(CAT[g["type"]]["price"] for g in gifts)
+        room = MAXCH / 100 * price - sum(CAT[g["type"]]["price"] for g in gifts)
         if extra > max(0.0, room) + 1e-6: extra = round(max(0.0, room), 4)
         stake = extra + sum(CAT[g["type"]]["price"] for g in gifts)
         if stake <= 0: return fail(c, "Добавь ставку")
