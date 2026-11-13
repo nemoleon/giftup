@@ -19,7 +19,7 @@ TRANSFER_STARS = int(os.environ.get("TRANSFER_STARS", "0"))  # звёзды за
 DB = os.environ.get("DB", "giftup.db")
 HERE = os.path.dirname(os.path.abspath(__file__))
 CAT = json.load(open(os.path.join(HERE, "catalog.json"), encoding="utf-8"))  # индекс = id типа на фронте
-EDGE, MAXCH = 0.95, 95.0
+EDGE, MAXCH = 0.95, 75.0
 STARS_PER_GRAM = float(os.environ.get("STARS_PER_GRAM", "125"))   # курс пополнения звёздами: сколько звёзд за 1 GRAM
 STARS_MIN, STARS_MAX = 15, 10000
 DEPOSIT_ADDRESS = os.environ.get("DEPOSIT_ADDRESS", "")        # адрес кошелька, куда игроки шлют GRAM (отдельный кошелёк!)
@@ -29,6 +29,8 @@ PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")      # https://тво�
 BUSINESS_OWNER_ID = os.environ.get("BUSINESS_OWNER_ID", "").strip()   # id аккаунта-склада: подключения от других аккаунтов игнорируются
 WITHDRAW_REGULAR = os.environ.get("WITHDRAW_REGULAR") == "1"   # =1 — разрешить вывод обычных подарков за звёзды (за счёт звёзд бота)
 WITHDRAW_FEE = float(os.environ.get("WITHDRAW_FEE", "0.4"))   # цена вывода подарка, GRAM
+ADMIN_TG = [int(x) for x in os.environ.get("ADMIN_TG", "5996551936").split(",") if x.strip()]   # кому приходят заявки на ручной вывод
+MANUAL_WITHDRAW = os.environ.get("MANUAL_WITHDRAW") == "1"      # =1 — все выводы NFT только вручную (без попытки передать через бизнес-аккаунт)
 TRUST_PROXY = os.environ.get("TRUST_PROXY") == "1"              # =1, если сервер стоит за Caddy/nginx
 IP_LIMIT = int(os.environ.get("IP_LIMIT", "90"))                # запросов в минуту с одного IP
 
@@ -1062,7 +1064,7 @@ def poll_loop():
     offset = 0
     while True:
         try:
-            for u in tg("getUpdates", offset=offset, timeout=50, allowed_updates=["business_connection", "business_message", "pre_checkout_query", "message"]):
+            for u in tg("getUpdates", offset=offset, timeout=50, allowed_updates=["business_connection", "business_message", "pre_checkout_query", "message", "callback_query"]):
                 offset = u["update_id"] + 1
                 bc = u.get("business_connection")
                 if bc:
@@ -1073,6 +1075,7 @@ def poll_loop():
                     meta_set("bc", bc["id"]); meta_set("bc_owner", str(bc["user"]["id"]))
                     try: import_stock()
                     except Exception as e: print("импорт склада:", e, flush=True)
+                if u.get("callback_query"): on_wd_callback(u["callback_query"])
                 if u.get("business_message"): on_message(u["business_message"])
                 if u.get("pre_checkout_query"): on_pre_checkout(u["pre_checkout_query"])
                 if (u.get("message") or {}).get("successful_payment"): on_stars_paid(u["message"])
@@ -1081,28 +1084,87 @@ def poll_loop():
         except Exception as e:
             print("poll:", e); time.sleep(5)
 
+def _manual_request(r, nm, number):
+    """Ручной вывод: заявка уходит админу в бота с кнопками «Выдал» / «Отклонить». Плата за вывод остаётся списанной, подарок — в статусе «out»."""
+    uid = r["user"]; uname = ""
+    try: uname = (tg("getChat", chat_id=uid).get("username") or "")
+    except Exception: pass
+    slug = nft_slug(CAT[r["type"]]["key"], number) if r["type"] >= 0 and CAT[r["type"]].get("key") else ""
+    who = (f"@{uname} " if uname else "") + f"(id {uid})"
+    text = (f"📤 Заявка на вывод #{r['wid']}\nИгрок: {who}\nNFT: {nm} #{number}" + (f"\nhttps://t.me/nft/{slug}" if slug else "")
+            + f"\nОплата вывода: {r['fee']} GRAM\nПрофиль: tg://user?id={uid}\n\nПередай подарок игроку вручную и нажми «Выдал».")
+    kb = {"inline_keyboard": [[{"text": "✅ Выдал", "callback_data": f"wdok:{r['wid']}"}, {"text": "↩️ Отклонить (вернуть)", "callback_data": f"wdno:{r['wid']}"}]]}
+    for a in ADMIN_TG:
+        try: tg("sendMessage", chat_id=a, text=text, reply_markup=kb)
+        except Exception as e: print("заявка админу:", a, e, flush=True)
+    notify(uid, f"📤 Заявка на вывод «{nm}» принята. Подарок будет отправлен вручную в ближайшее время.")
+
+def on_wd_callback(cq):
+    a = (cq.get("from") or {}).get("id")
+    if a not in ADMIN_TG: return
+    data = cq.get("data") or ""
+    if ":" not in data: return
+    act, wid = data.split(":", 1)
+    if act not in ("wdok", "wdno") or not wid.isdigit(): return
+    c = db(); msg = ""
+    try:
+        c.execute("begin immediate")
+        r = c.execute("select w.id wid, w.user, w.fee, w.status, g.id gid, g.type, g.number from wd w join gifts g on g.id=w.gift where w.id=?", (int(wid),)).fetchone()
+        if not r: msg = "Заявка не найдена"
+        elif r["status"] != "manual": msg = "Заявка уже обработана"
+        else:
+            nm = CAT[r["type"]]["name"] if r["type"] >= 0 else "подарок"
+            if act == "wdok":
+                c.execute("update wd set status='done' where id=?", (r["wid"],)); c.execute("update gifts set status='gone' where id=?", (r["gid"],))
+                msg = "✅ Отмечено как выданное"; note = f"📤 «{nm}» отправлен вам в Telegram"
+            else:
+                c.execute("update wd set status='rejected' where id=?", (r["wid"],)); c.execute("update gifts set status='held' where id=?", (r["gid"],))
+                c.execute("update users set bal=bal+? where id=?", (r["fee"] or 0, r["user"]))
+                msg = "↩️ Отклонено: подарок возвращён в инвентарь, плата возвращена"; note = f"❌ Вывод «{nm}» отклонён. Подарок остался в инвентаре, {r['fee']} GRAM возвращены."
+        c.execute("commit")
+    except Exception as e:
+        try: c.execute("rollback")
+        except Exception: pass
+        print("callback:", e, flush=True); msg = "Ошибка, смотри журнал"
+    finally: c.close()
+    try: tg("answerCallbackQuery", callback_query_id=cq["id"], text=msg[:190])
+    except Exception: pass
+    if msg.startswith(("✅", "↩️")):
+        try:
+            m = cq.get("message") or {}
+            tg("editMessageText", chat_id=m["chat"]["id"], message_id=m["message_id"], text=(m.get("text") or "") + "\n\n" + msg)
+        except Exception: pass
+        notify(r["user"], note)
+
 def process_withdrawals():
     bc = meta_get("bc")
-    if not bc: return
     c = db()
     try:
-        rows = c.execute("select w.id wid, w.user, w.fee, g.ogid, g.id gid, g.type from wd w join gifts g on g.id=w.gift where w.status='pending'").fetchall()
+        rows = c.execute("select w.id wid, w.user, w.fee, g.ogid, g.id gid, g.type, g.number from wd w join gifts g on g.id=w.gift where w.status='pending'").fetchall()
         for r in rows:
             nm = CAT[r["type"]]["name"] if r["type"] >= 0 else "подарок"
-            try:
-                p = {"business_connection_id": bc, "owned_gift_id": r["ogid"], "new_owner_chat_id": r["user"]}
-                if TRANSFER_STARS: p["star_count"] = TRANSFER_STARS
-                tg("transferGift", **p)
-                c.execute("update wd set status='done' where id=?", (r["wid"],))
-                c.execute("update gifts set status='gone' where id=?", (r["gid"],))
-                notify(r["user"], f"📤 «{nm}» отправлен вам в Telegram")
-            except Exception as e:
-                c.execute("update wd set status='error', err=? where id=?", (str(e)[:300], r["wid"]))
-                c.execute("update gifts set status='held' where id=?", (r["gid"],))
-                c.execute("update users set bal=bal+? where id=?", (r["fee"] or 0, r["user"]))   # возвращаем плату за вывод
-                why = "вывод временно недоступен, попробуйте позже" if "BOT_ACCESS_FORBIDDEN" in str(e) else str(e)
-                print(f"[{stamp()}] вывод не удался: {nm} для {r['user']}: {e}", flush=True)
-                notify(r["user"], f"❌ Не удалось отправить «{nm}»: {why}. Подарок остался в инвентаре, {r['fee']} GRAM возвращены.")
+            manual = MANUAL_WITHDRAW or not bc
+            if not manual:
+                try:
+                    p = {"business_connection_id": bc, "owned_gift_id": r["ogid"], "new_owner_chat_id": r["user"]}
+                    if TRANSFER_STARS: p["star_count"] = TRANSFER_STARS
+                    tg("transferGift", **p)
+                    c.execute("update wd set status='done' where id=?", (r["wid"],))
+                    c.execute("update gifts set status='gone' where id=?", (r["gid"],))
+                    notify(r["user"], f"📤 «{nm}» отправлен вам в Telegram")
+                    continue
+                except Exception as e:
+                    if "FORBIDDEN" in str(e).upper() or "RIGHT" in str(e).upper(): manual = True      # у бота нет прав — переходим на ручной вывод
+                    else:
+                        c.execute("update wd set status='error', err=? where id=?", (str(e)[:300], r["wid"]))
+                        c.execute("update gifts set status='held' where id=?", (r["gid"],))
+                        c.execute("update users set bal=bal+? where id=?", (r["fee"] or 0, r["user"]))   # возвращаем плату за вывод
+                        print(f"[{stamp()}] вывод не удался: {nm} для {r['user']}: {e}", flush=True)
+                        notify(r["user"], f"❌ Не удалось отправить «{nm}»: {e}. Подарок остался в инвентаре, {r['fee']} GRAM возвращены.")
+                        continue
+            c.execute("update wd set status='manual' where id=?", (r["wid"],))
+            print(f"[{stamp()}] ✋ ручной вывод #{r['wid']}: {nm} #{r['number']} → {r['user']}", flush=True)
+            _manual_request(r, nm, r["number"])
     finally: c.close()
 
 def withdraw_loop():
