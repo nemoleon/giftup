@@ -211,7 +211,7 @@ requestAnimationFrame(frame)})();
 <circle id="arc" cx="100" cy="100" r="80" fill="none" stroke="var(--ac)" stroke-width="18" stroke-dasharray="0 600"/>
 <circle cx="100" cy="100" r="62" fill="none" stroke="#201219" stroke-width="2"/>
 <g fill="#55555f" font-size="8" font-weight="700" text-anchor="middle"><text x="100" y="-4">100%</text><text x="-14" y="103">50%</text><text x="214" y="103">50%</text><text x="100" y="212">0%</text></g>
-<g id="ptr" style="transform-origin:100px 100px;transition:transform 4s cubic-bezier(.12,.7,.1,1)">
+<g id="ptr" style="transform-origin:100px 100px;transition:transform 5.6s cubic-bezier(.12,.7,.1,1)">
 <line x1="100" y1="166" x2="100" y2="194" stroke="#ffe3f1" stroke-width="2.5" stroke-linecap="round"/></g></svg><div class="mid" id="mid"></div></div>
 <div class="slots">
 <div class="slot" id="s1"><div class="mc" id="s1c"></div><div class="t" id="s1t"></div></div>
@@ -449,7 +449,7 @@ $("rg").oninput=function(){pcts=Math.min(parseInt(this.value)||0,maxPct());rende
 function near(tv){var st=stake(),b=-1,bd=1e18,mx=0;T.forEach(function(t,i){if(!avail(i))return;if(t.v>T[mx].v)mx=i;if(t.v<=st)return;var d=Math.abs(t.v-tv);if(d<bd){bd=d;b=i}});return b<0?mx:b}
 $("chips").onclick=function(e){var b=e.target.closest(".chp");if(!b||busy)return;var st=stake();
   if(st<=0){say("Сначала добавь ставку: подарки или % баланса","var(--bad)");return}
-  want=near(b.dataset.x?st*b.dataset.x:st*EDGE*100/b.dataset.p);wantG=0;say("");render();grid()};
+  want=near(b.dataset.x?st*b.dataset.x:st*EDGE*100/b.dataset.p);var sw=(S.si||[]).filter(function(x){return x.t===want})[0];wantG=sw?sw.id:0;say("");render();grid()};
 $("fast").onclick=function(){fast=!fast;setSave();render()};
 var SET={xs:[2,4,8],ps:[35,55,75]},DEF={xs:[2,4,8],ps:[35,55,75]},SC=[35,55,75];
 try{var _s=JSON.parse(localStorage.getItem("gu_set")||"null");if(_s&&_s.xs&&_s.ps&&_s.xs.length===3&&_s.ps.length===3){SET=_s;fast=!!_s.fast;hap=_s.hap!==false}}catch(e){}
@@ -551,7 +551,7 @@ $("go").onclick=function(){
   var roll=Math.random()*100;spin(roll,Math.abs(roll-50)<ch/2,w,ex,null,null);
 };
 function spin(roll,win,w,ex,gift,st){
-  var dur=fast?1200:4000;
+  var dur=fast?1200:5600;
   rot=Math.ceil(rot/360)*360+(fast?720:1800)+(roll-50)*3.6;
   $("ptr").style.transition="transform "+dur+"ms cubic-bezier(.12,.7,.1,1)";$("ptr").style.transform="rotate("+rot+"deg)";
   say("Крутим…");
