@@ -650,8 +650,9 @@ def api_boost(body: dict, x_init_data: str = Header("")):
             if wg: target = c.execute("select * from gifts where id=? and type=? and status='house'", (wg, want)).fetchone()
             if not target: target = c.execute("select * from gifts where type=? and status='house' order by random() limit 1", (want,)).fetchone()
             if not target: return fail(c, "Этого подарка сейчас нет в наличии")
-        display_ch = min(MAXCH, stake / price * 100)
-        real_ch = display_ch * EDGE
+            display_ch = min(MAXCH, stake / price * 100)
+        current_edge = 0.55 if display_ch < 40.0 else EDGE
+        real_ch = display_ch * current_edge
         hh = hmac.new(u["seed"].encode(), f'{uid}:{u["nonce"]}'.encode(), hashlib.sha256).digest()
         roll = int.from_bytes(hh[:8], "big") / 2**64 * 100
         win = abs(roll - 50) < real_ch / 2
