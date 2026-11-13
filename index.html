@@ -275,12 +275,12 @@ var PH="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2
 function gi(g){return g&&g.im?(API_URL||"")+g.im:IM[g.t]}
 // ok:1 — цена из маркета/скриншота, без флага — оценка (≈). k — англ. название для авто-цен
 var T=[
-{n:"Снеговик",v:8},{n:"Мамонт во льду",v:12},{n:"Капкейк-убежище",v:10},{n:"Хаски в цветах",v:9},{n:"Розовая банка",v:7},{n:"Пивная медаль",v:6},
-{n:"Пряничный человечек",v:5,k:"Ginger Cookie"},{n:"Лампа джинна",v:37.3,ok:1,k:"Genie Lamp"},{n:"Леопард-круг",v:6},{n:"Лапша SLURP",v:5,k:"Instant Ramen"},
-{n:"Золотая маска",v:12,k:"Venetian Mask"},{n:"Голубой леденец",v:4,k:"Lol Pop"},{n:"Пёс Snoop",v:6.1,ok:1,k:"Snoop Dogg"},{n:"Карамельная трость",v:3,k:"Candy Cane"},
+{n:"Snowman",v:8},{n:"Ice Mammoth",v:12},{n:"Cupcake Shelter",v:10},{n:"Flower Husky",v:9},{n:"Pink Jar",v:7},{n:"Beer Medal",v:6},
+{n:"Ginger Cookie",v:5,k:"Ginger Cookie"},{n:"Genie Lamp",v:37.3,ok:1,k:"Genie Lamp"},{n:"Leopard Ring",v:6},{n:"Instant Ramen",v:5,k:"Instant Ramen"},
+{n:"Venetian Mask",v:12,k:"Venetian Mask"},{n:"Lol Pop",v:4,k:"Lol Pop"},{n:"Snoop Dogg",v:6.1,ok:1,k:"Snoop Dogg"},{n:"Candy Cane",v:3,k:"Candy Cane"},
 {n:"Heart Locket",v:1566.4,ok:1},{n:"Resistance Dog",v:596.2,ok:1},{n:"Durov’s Cap",v:458.71,ok:1},{n:"Durov’s Cap",v:457.78,ok:1},{n:"Precious Peach",v:385.97,ok:1},
 {n:"Scared Cat",v:327.25,ok:1},{n:"Precious Peach",v:305.08,ok:1},{n:"Toy Bear",v:260,ok:1},{n:"Toy Bear",v:260,ok:1},
-{n:"Сердце",v:0.11,st:15,e:"💝",nw:1},{n:"Мишка",v:0.11,st:15,e:"🧸",nw:1},{n:"Подарок",v:0.19,st:25,e:"🎁",nw:1},{n:"Роза",v:0.19,st:25,e:"🌹",nw:1},{n:"Торт",v:0.38,st:50,e:"🎂",nw:1},{n:"Букет",v:0.38,st:50,e:"💐",nw:1},{n:"Ракета",v:0.38,st:50,e:"🚀",nw:1},{n:"Шампанское",v:0.38,st:50,e:"🍾",nw:1},{n:"Кубок",v:0.75,st:100,e:"🏆",nw:1},{n:"Кольцо",v:0.75,st:100,e:"💍",nw:1},{n:"Алмаз",v:0.75,st:100,e:"💎",nw:1},{n:"Party Sparkler",v:5.51,st:735,e:"🎇",k:"Party Sparkler"},{n:"Cookie Heart",v:5.57,st:743,e:"🍪",k:"Cookie Heart"},{n:"Restless Jar",v:5.68,st:758,e:"🫙",k:"Restless Jar"},{n:"Liberty Figure",v:5.75,st:766,e:"🧑‍✈️",k:"Liberty Figure"},{n:"Spring Basket",v:6.13,st:817,e:"🧺",k:"Spring Basket"},{n:"Swag Bag",v:6.15,st:820,e:"🥤",k:"Swag Bag"},{n:"Desk Calendar",v:6.21,st:828,e:"🧸",k:"Desk Calendar"},{n:"Faith Amulet",v:6.21,st:828,e:"🌙",k:"Faith Amulet"},{n:"Bow Tie",v:6.29,st:838,e:"🎀",k:"Bow Tie"}];
+{n:"Heart",v:0.11,st:15,e:"💝",nw:1},{n:"Teddy Bear",v:0.11,st:15,e:"🧸",nw:1},{n:"Gift",v:0.19,st:25,e:"🎁",nw:1},{n:"Rose",v:0.19,st:25,e:"🌹",nw:1},{n:"Cake",v:0.38,st:50,e:"🎂",nw:1},{n:"Bouquet",v:0.38,st:50,e:"💐",nw:1},{n:"Rocket",v:0.38,st:50,e:"🚀",nw:1},{n:"Champagne",v:0.38,st:50,e:"🍾",nw:1},{n:"Trophy",v:0.75,st:100,e:"🏆",nw:1},{n:"Ring",v:0.75,st:100,e:"💍",nw:1},{n:"Diamond",v:0.75,st:100,e:"💎",nw:1},{n:"Party Sparkler",v:5.51,st:735,e:"🎇",k:"Party Sparkler"},{n:"Cookie Heart",v:5.57,st:743,e:"🍪",k:"Cookie Heart"},{n:"Restless Jar",v:5.68,st:758,e:"🫙",k:"Restless Jar"},{n:"Liberty Figure",v:5.75,st:766,e:"🧑‍✈️",k:"Liberty Figure"},{n:"Spring Basket",v:6.13,st:817,e:"🧺",k:"Spring Basket"},{n:"Swag Bag",v:6.15,st:820,e:"🥤",k:"Swag Bag"},{n:"Desk Calendar",v:6.21,st:828,e:"🧸",k:"Desk Calendar"},{n:"Faith Amulet",v:6.21,st:828,e:"🌙",k:"Faith Amulet"},{n:"Bow Tie",v:6.29,st:838,e:"🎀",k:"Bow Tie"}];
 T[12].st=814;T[12].e="🐕";
 var START=[[0,292055],[1,3764],[0,99103],[2,228194],[3,58862],[4,66269],[5,86113],[6,92443],[7,184550],[8,110655],[9,333432],[10,130698],[11,291808],[12,576131],[13,36003]];
 var STAR_RATE=0.0075; // сколько GRAM «стоит» 1 звезда (для оценки подарков из магазина звёзд)
@@ -345,12 +345,19 @@ function avail(i){return !API_URL||!!T[i].nw||!!T[i].stock}
 function wlist(){return T.map(function(t,i){return i}).filter(avail).sort(function(a,b){return T[b].v-T[a].v})}
 function sorted(){return T.map(function(t,i){return i}).filter(function(i){return !T[i].nw}).sort(function(a,b){return T[b].v-T[a].v})}
 var STARS=T.map(function(t,i){return i}).filter(function(i){return T[i].st}).sort(function(a,b){return T[a].st-T[b].st||(T[a].n<T[b].n?-1:1)});
+var wishPg=0,wishDesc=true,wishFrom="",wishTo="",wishQ="",wishQon=false,curMode="";
 var cart={},shopPg=0,shopDesc=true,shopFrom="",shopTo="",shopQ="",shopQon=false,SHP=9;
 var CART_ICO='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2.5l2 11h10.5l2-8H7"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg>',TRASH_ICO='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg>';
 function pl(n,a,b,c){var m=n%100,k=n%10;return m>10&&m<20?c:k===1?a:k>1&&k<5?b:c}
 function shopList(){var ql=shopQ.trim().toLowerCase(),lo=parseFloat(shopFrom),hi=parseFloat(shopTo);
   return (S.si||[]).filter(function(x){var t=T[x.t];if(!t||t.nw)return false;var v=t.v;if(!isNaN(lo)&&v<lo)return false;if(!isNaN(hi)&&v>hi)return false;if(ql&&(t.n+" "+(KEYS[x.t]||"")+" "+x.no).toLowerCase().indexOf(ql)<0)return false;return true})
    .sort(function(a,b){return (shopDesc?T[b.t].v-T[a.t].v:T[a.t].v-T[b.t].v)||a.no-b.no})}
+function wishList(){var ql=wishQ.trim().toLowerCase(),lo=parseFloat(wishFrom),hi=parseFloat(wishTo),L=[];
+  function ok(t,no){var v=t.v;if(!isNaN(lo)&&v<lo)return false;if(!isNaN(hi)&&v>hi)return false;return !ql||(t.n+" "+(KEYS[T.indexOf(t)]||"")+" "+(no||"")).toLowerCase().indexOf(ql)>=0}
+  if(API_URL){(S.si||[]).forEach(function(x){var t=T[x.t];if(t&&!t.nw&&x.pr!==0&&ok(t,x.no))L.push({g:x,i:x.t,no:x.no})});var stk=stake();if(stk>0)wlist().forEach(function(i){if(T[i].nw&&T[i].v>stk&&ok(T[i]))L.push({i:i,no:0})})}
+  else wlist().forEach(function(i){if(ok(T[i]))L.push({i:i,no:0})});
+  return L.sort(function(a,b){return (wishDesc?T[b.i].v-T[a.i].v:T[a.i].v-T[b.i].v)||a.no-b.no})}
+function wishBar(pages){$("shp").innerHTML='<button class="pgb" id="wpv"'+(wishPg<=0?' disabled':'')+' aria-label="Назад">‹</button><span class="pgt" style="flex:1;text-align:center">'+(wishPg+1)+' из '+pages+'</span><button class="pgb" id="wnx"'+(wishPg>=pages-1?' disabled':'')+' aria-label="Вперёд">›</button>'}
 function cartItems(){return (S.si||[]).filter(function(x){return cart[x.id]})}
 function cartTotal(){var s=0;cartItems().forEach(function(x){s+=T[x.t].v});return Math.round(s*100)/100}
 function shopCard(x){var t=T[x.t],np=x.pr===0;return '<button class="cd sc2'+(cart[x.id]?' cart':'')+(np?' np':'')+'" data-sh="'+x.id+'" style="background-image:url('+gi(x)+')"><span class="pb">'+(np?'На оценке':gem()+f(t.v,t.v<10?2:(t.v<100?1:0)))+'</span><div class="nm">'+t.n+'<small>#'+x.no+'</small></div><i class="ck"><svg viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9" fill="none" stroke="#120c11" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></i></button>'}
@@ -382,8 +389,11 @@ function markDis(){var st=stake(),n=document.querySelectorAll("#gr .cd[data-w]")
 function grid(){
   $("m1").className=tabM==1?"on":"";$("m2").className=tabM==2?"on":"";$("sb").style.display=tabM==1?"":"none";
   [1,2,3].forEach(function(k){$("u"+k).className=tabU==k?"on":""});var h="";
-  $("tb").style.display=(tabM==1&&tabU==1)?"":"none";var shopOn=!!API_URL&&tabM==1&&tabU==2;$("shb").style.display=shopOn?"":"none";$("shq").style.display=shopOn&&shopQon?"":"none";$("shp").style.display=shopOn?"":"none";$("shs").classList.toggle("asc",!shopDesc);$("tn").textContent=S.inv.length;$("srt").classList.toggle("asc",!sortDesc);
-  if(tabM==2){if(API_URL){(S.si||[]).slice().sort(function(a,c){return T[c.t].v-T[a.t].v||a.no-c.no}).forEach(function(x){h+=card(x.t,"#"+x.no,wantG===x.id,'data-w="'+x.t+'" data-g="'+x.id+'" data-v="'+T[x.t].v+'"',gi(x))});var stk=stake();if(stk>0)wlist().filter(function(i){return T[i].nw&&T[i].v>stk}).forEach(function(i){h+=card(i,"обычный",want===i,'data-w="'+i+'" data-v="'+T[i].v+'"')})}else wlist().forEach(function(i){h+=card(i,T[i].nw?"обычный":"желаемый",want===i,'data-w="'+i+'" data-v="'+T[i].v+'"')});if(!h)h='<div class="empty" style="grid-column:1/-1">Пока здесь нет подарков. Они появятся, когда будут в наличии.</div>'}
+  $("tb").style.display=(tabM==1&&tabU==1)?"":"none";var shopOn=!!API_URL&&tabM==1&&tabU==2,wishOn=tabM==2,mode=wishOn?"w":(shopOn?"s":"");$("shb").style.display=(shopOn||wishOn)?"":"none";$("shc").style.display=wishOn?"none":"";$("shq").style.display=((shopOn&&shopQon)||(wishOn&&wishQon))?"":"none";$("shp").style.display=(shopOn||wishOn)?"":"none";$("shs").classList.toggle("asc",!(wishOn?wishDesc:shopDesc));
+  if(mode&&mode!==curMode){curMode=mode;$("shlo").value=wishOn?wishFrom:shopFrom;$("shhi").value=wishOn?wishTo:shopTo;$("shqi").value=wishOn?wishQ:shopQ}$("tn").textContent=S.inv.length;$("srt").classList.toggle("asc",!sortDesc);
+  if(tabM==2){var WL=wishList(),wpages=Math.max(1,Math.ceil(WL.length/SHP));if(wishPg>=wpages)wishPg=wpages-1;if(wishPg<0)wishPg=0;
+    WL.slice(wishPg*SHP,(wishPg+1)*SHP).forEach(function(e){var i=e.i;h+=e.g?card(i,"#"+e.g.no,wantG===e.g.id,'data-w="'+i+'" data-g="'+e.g.id+'" data-v="'+T[i].v+'"',gi(e.g)):card(i,T[i].nw?"Regular":"",want===i,'data-w="'+i+'" data-v="'+T[i].v+'"')});
+    if(!h)h='<div class="empty" style="grid-column:1/-1">'+((S.si||[]).length||!API_URL?'Ничего не найдено':'Пока здесь нет подарков. Они появятся, когда будут в наличии.')+'</div>';wishBar(wpages)}
   else if(tabU==1){var ql=qry.trim().toLowerCase(),list=S.inv.slice().sort(function(x,y){return sortDesc?T[y.t].v-T[x.t].v:T[x.t].v-T[y.t].v}).filter(function(g){return !ql||(T[g.t].n+" "+(KEYS[g.t]||"")).toLowerCase().indexOf(ql)>=0});
     list.forEach(function(g){h+=card(g.t,T[g.t].nw?"Обычный":"#"+g.no,sel[g.id],'data-i="'+g.id+'"',gi(g))});
     if(!S.inv.length){var gh="";[14,16,18,21,19,7].forEach(function(i){gh+=card(i,"",false,'tabindex="-1"')});h='<div class="ghostw"><div class="gg">'+gh+'</div><div class="ov"><div>Пустой инвентарь? Отправь подарки <a>@'+(S.owner||"владельцу")+'</a> и начинай буст.</div><button id="sendb">Отправить</button></div></div>'}
@@ -399,11 +409,11 @@ function grid(){
 function go2(m,u){tabM=m;if(u)tabU=u;grid();$("m1").scrollIntoView({behavior:"smooth",block:"start"})}
 $("s1").onclick=function(){go2(1,1)};$("s1").style.cursor="pointer";$("s2").onclick=function(){go2(2)};
 $("m1").onclick=function(){tabM=1;grid()};$("m2").onclick=function(){tabM=2;grid()};
-$("shp").onclick=function(e){var b=e.target.closest("button");if(!b||b.disabled)return;if(b.id==="shpv"){shopPg--;grid()}else if(b.id==="shnx"){shopPg++;grid()}else if(b.id==="shcl"){cart={};grid()}else if(b.id==="sht")cartOpen()};
-$("shs").onclick=function(){shopDesc=!shopDesc;shopPg=0;grid()};$("shc").onclick=cartOpen;
-$("shsb").onclick=function(){shopQon=!shopQon;if(!shopQon){shopQ="";$("shqi").value="";shopPg=0}grid();if(shopQon)$("shqi").focus()};
-$("shqi").oninput=function(){shopQ=this.value;shopPg=0;grid()};
-$("shlo").oninput=function(){shopFrom=this.value.replace(",",".");shopPg=0;grid()};$("shhi").oninput=function(){shopTo=this.value.replace(",",".");shopPg=0;grid()};
+$("shp").onclick=function(e){var b=e.target.closest("button");if(!b||b.disabled)return;if(b.id==="wpv"){wishPg--;grid()}else if(b.id==="wnx"){wishPg++;grid()}else if(b.id==="shpv"){shopPg--;grid()}else if(b.id==="shnx"){shopPg++;grid()}else if(b.id==="shcl"){cart={};grid()}else if(b.id==="sht")cartOpen()};
+$("shs").onclick=function(){if(tabM==2){wishDesc=!wishDesc;wishPg=0}else{shopDesc=!shopDesc;shopPg=0}grid()};$("shc").onclick=cartOpen;
+$("shsb").onclick=function(){if(tabM==2){wishQon=!wishQon;if(!wishQon){wishQ="";$("shqi").value="";wishPg=0}grid();if(wishQon)$("shqi").focus();return}shopQon=!shopQon;if(!shopQon){shopQ="";$("shqi").value="";shopPg=0}grid();if(shopQon)$("shqi").focus()};
+$("shqi").oninput=function(){if(tabM==2){wishQ=this.value;wishPg=0}else{shopQ=this.value;shopPg=0}grid()};
+$("shlo").oninput=function(){var v=this.value.replace(",",".");if(tabM==2){wishFrom=v;wishPg=0}else{shopFrom=v;shopPg=0}grid()};$("shhi").oninput=function(){var v=this.value.replace(",",".");if(tabM==2){wishTo=v;wishPg=0}else{shopTo=v;shopPg=0}grid()};
 $("csx").onclick=cartClose;$("csc").onclick=cartClose;$("cs").onclick=function(e){if(e.target===this)cartClose()};
 $("csa").onclick=function(){cart={};cartClose();grid()};$("csb").onclick=function(){cartBuy(this)};
 $("csl").onclick=function(e){var b=e.target.closest("button[data-cr]");if(!b)return;delete cart[b.dataset.cr];if(!cartItems().length)cartClose();else renderCart();grid()};
