@@ -937,6 +937,22 @@ def api_import(body: dict = None, x_admin_key: str = Header("")):
         return {"ok": True, "added": n, "custom_types": [{"id": i, "name": x["name"], "model": x.get("model"), "price": x["price"]} for i, x in enumerate(CAT) if x.get("custom")]}
     except Exception as e: return {"ok": False, "error": str(e)}
 
+@app.post("/api/admin/unfix")
+def api_unfix(body: dict = None, x_admin_key: str = Header("")):
+    """Снять ручную цену: {"names":["Myth Mask"]} — у всех моделей этого названия; цена дальше определяется автоматически (запусти /api/admin/reprice)."""
+    if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
+    names = {_norm(n) for n in ((body or {}).get("names") or [])}
+    if not names: return {"ok": False, "error": "укажи names"}
+    n = 0
+    with _cat_lock:
+        for x in CAT:
+            if x.get("custom") and x.get("fixed") and _norm(x["key"]) in names:
+                x["fixed"] = False; x["priced"] = False; n += 1
+                c = db()
+                try: c.execute("update custom set fixed=0, psrc=0 where id=?", (x["custom"],))
+                finally: c.close()
+    return {"ok": True, "unfixed": n}
+
 @app.post("/api/admin/reprice")
 def api_reprice(x_admin_key: str = Header("")):
     """Пересчитать цены всех NFT-типов каталога по Gift Asset (фоном). Заблокированные (fixed) не трогает."""
