@@ -19,7 +19,7 @@ TRANSFER_STARS = int(os.environ.get("TRANSFER_STARS", "0"))  # звёзды за
 DB = os.environ.get("DB", "giftup.db")
 HERE = os.path.dirname(os.path.abspath(__file__))
 CAT = json.load(open(os.path.join(HERE, "catalog.json"), encoding="utf-8"))  # индекс = id типа на фронте
-EDGE, MAXCH = 0.95, 75.0
+EDGE, MAXCH = 0.70, 75.0
 STARS_PER_GRAM = float(os.environ.get("STARS_PER_GRAM", "125"))   # курс пополнения звёздами: сколько звёзд за 1 GRAM
 STARS_MIN, STARS_MAX = 15, 10000
 DEPOSIT_ADDRESS = os.environ.get("DEPOSIT_ADDRESS", "")        # адрес кошелька, куда игроки шлют GRAM (отдельный кошелёк!)
@@ -637,7 +637,7 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         if extra > u["bal"] + 1e-9: return fail(c, "Не хватает баланса")
         stake = extra + sum(CAT[g["type"]]["price"] for g in gifts)
         price = CAT[want]["price"]
-        room = MAXCH / 100 * price / EDGE - sum(CAT[g["type"]]["price"] for g in gifts)     # выше максимального шанса ставку с баланса не принимаем
+                room = MAXCH / 100 * price - sum(CAT[g["type"]]["price"] for g in gifts)
         if extra > max(0.0, room) + 1e-6: extra = round(max(0.0, room), 4)
         stake = extra + sum(CAT[g["type"]]["price"] for g in gifts)
         if stake <= 0: return fail(c, "Добавь ставку")
@@ -650,11 +650,19 @@ def api_boost(body: dict, x_init_data: str = Header("")):
             if wg: target = c.execute("select * from gifts where id=? and type=? and status='house'", (wg, want)).fetchone()
             if not target: target = c.execute("select * from gifts where type=? and status='house' order by random() limit 1", (want,)).fetchone()
             if not target: return fail(c, "Этого подарка сейчас нет в наличии")
-        ch = min(MAXCH, stake / price * 100 * EDGE)
-        # честный рандом: HMAC(server_seed, "id:nonce"); хэш seed виден игроку заранее
+        display_ch = min(MAXCH, stake / price * 100)
+        real_ch = display_ch * EDGE
         hh = hmac.new(u["seed"].encode(), f'{uid}:{u["nonce"]}'.encode(), hashlib.sha256).digest()
         roll = int.from_bytes(hh[:8], "big") / 2**64 * 100
-        win = abs(roll - 50) < ch / 2
+        win = abs(roll - 50) < real_ch / 2
+        visual_roll = roll
+        if not win and abs(visual_roll - 50) < display_ch / 2:
+            red_space = 100.0 - display_ch
+            pos_in_red = (roll / 100.0) * red_space
+            if pos_in_red < (50.0 - display_ch / 2):
+                visual_roll = pos_in_red
+            else:
+                visual_roll = pos_in_red + display_ch
         for g in gifts:
             if CAT[g["type"]].get("nw"): c.execute("update gifts set owner=null, status='gone' where id=?", (g["id"],))   # обычный подарок сгорает
             else: c.execute("update gifts set owner=null, status='house' where id=?", (g["id"],))
@@ -671,39 +679,14 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         now = int(time.time())
         if win or not gifts:    # выигрыш (или проигрыш ставки с баланса) — строка про желаемый подарок
             c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,?,?,?)",
-                      (uid, now, want, (gift or {}).get("no", 0), 1 if win else 0, ch, price))
+                      (uid, now, want, (gift or {}).get("no", 0), 1 if win else 0, display_ch, price))
         else:                   # проигрыш: в истории — сгоревшие подарки-ставки
             for g in gifts:
                 c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,?,?,?)",
-                          (uid, now, g["type"], g["number"], 0, ch, CAT[g["type"]]["price"]))
+                          (uid, now, g["type"], g["number"], 0, display_ch, CAT[g["type"]]["price"]))
         st = state(c, uid); c.execute("commit")
-        return {"ok": True, "win": win, "roll": roll, "chance": ch, "gift": gift, "state": st}
-    except Exception:
-        try: c.execute("rollback")
-        except Exception: pass
-        raise
-    finally: c.close()
+        return {"ok": True, "win": win, "roll": visual_roll, "chance": display_ch, "gift": gift, "state": st}
 
-@app.post("/api/free")
-def api_free(x_init_data: str = Header("")):
-    return {"ok": False, "error": "Недоступно"}   # бесплатный кейс отключён
-    usr = check_init(x_init_data); uid = usr["id"]
-    if not hit(f"free:{uid}", 5, 60): return {"ok": False, "error": "Слишком часто, подожди немного"}
-    c = db()
-    try:
-        c.execute("begin immediate")
-        u = get_user(c, uid, usr.get("first_name", ""))
-        today = datetime.date.today().isoformat()
-        if u["free_day"] == today: return fail(c, "Бесплатный кейс уже открыт сегодня")
-        cheap = [i for i, g in enumerate(CAT) if g["price"] < 10 and not g.get("nw")]
-        if not cheap: return fail(c, "Кейс пуст")
-        q = ",".join("?" * len(cheap))
-        t = c.execute(f"select * from gifts where status='house' and type in ({q}) order by random() limit 1", cheap).fetchone()
-        if not t: return fail(c, "Кейс пуст")
-        c.execute("update gifts set owner=?, status='held' where id=?", (uid, t["id"]))
-        c.execute("update users set free_day=? where id=?", (today, uid))
-        st = state(c, uid); c.execute("commit")
-        return {"ok": True, "gift": {"id": t["id"], "t": t["type"], "no": t["number"]}, "state": st}
     except Exception:
         try: c.execute("rollback")
         except Exception: pass
