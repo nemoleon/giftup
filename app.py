@@ -1084,7 +1084,9 @@ def process_withdrawals():
                 c.execute("update wd set status='error', err=? where id=?", (str(e)[:300], r["wid"]))
                 c.execute("update gifts set status='held' where id=?", (r["gid"],))
                 c.execute("update users set bal=bal+? where id=?", (r["fee"] or 0, r["user"]))   # возвращаем плату за вывод
-                notify(r["user"], f"❌ Не удалось отправить «{nm}»: {e}. Подарок остался в инвентаре, {r['fee']} GRAM возвращены.")
+                why = "вывод временно недоступен, попробуйте позже" if "BOT_ACCESS_FORBIDDEN" in str(e) else str(e)
+                print(f"[{stamp()}] вывод не удался: {nm} для {r['user']}: {e}", flush=True)
+                notify(r["user"], f"❌ Не удалось отправить «{nm}»: {why}. Подарок остался в инвентаре, {r['fee']} GRAM возвращены.")
     finally: c.close()
 
 def withdraw_loop():
