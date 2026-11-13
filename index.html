@@ -98,10 +98,10 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 .lt p{font-size:17px;line-height:1.35;margin:14px 6px}.lt small{display:block;color:#888;font-size:13px;margin:8px 0 0}
 .lt .pay{width:100%;padding:17px;border-radius:26px;background:#3b8cff;color:#fff;font-weight:700;font-size:18px;margin-top:6px}
 .slots{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
-.slot{width:100%;background:var(--cd);border-radius:26px;min-height:212px;padding:10px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center;font-size:13px;color:var(--mut)}
-.slot.fil{position:relative;background:var(--cd) center 35%/cover no-repeat;overflow:hidden}.slot.fil .sp{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.62);border-radius:22px;padding:6px 16px 6px 8px;font-size:19px;font-weight:800;color:var(--ac);display:flex;align-items:center;gap:8px;white-space:nowrap}.slot.fil .sp .gem{width:26px;height:26px;font-size:13px}.slot.fil .t small{display:block;color:var(--mut);font-size:13px}
+.slot{width:100%;background:var(--cd);border-radius:26px;aspect-ratio:1/1;padding:10px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center;font-size:13px;color:var(--mut)}
+.slot.fil{position:relative;background:var(--cd) center 35%/cover no-repeat;overflow:hidden}.slot.fil .sp{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.62);border-radius:22px;padding:6px 16px 6px 8px;font-size:19px;font-weight:800;color:var(--ac);display:flex;align-items:center;gap:8px;white-space:nowrap}.slot.fil .sx{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.62);border-radius:16px;padding:4px 10px;font-size:15px;font-weight:800;color:var(--tx)}.slot.fil .sp .gem{width:26px;height:26px;font-size:13px}.slot.fil .t small{display:block;color:var(--mut);font-size:13px}
 .slot.emp{background:radial-gradient(circle at 50% 36%,rgba(255,79,160,.32),transparent 66%),var(--cd)}
-.art{position:relative;width:min(118px,29vw);aspect-ratio:104/92;flex:none;margin:auto 0 12px}.art svg{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 0 14px rgba(255,79,160,.45))}
+.art{position:relative;width:min(98px,25vw);aspect-ratio:104/92;flex:none;margin:auto 0 12px}.art svg{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 0 14px rgba(255,79,160,.45))}
 .slot .art img{position:absolute;left:50%;top:46%;width:44%;aspect-ratio:1;height:auto;border-radius:50%;margin:0;transform:translate(-50%,-50%);object-fit:cover;box-shadow:0 0 0 2px #ff4fa0,0 0 18px rgba(255,79,160,.5)}
 .art .fg{position:absolute;left:50%;top:52%;width:58%;height:auto;transform:translate(-50%,-50%);filter:drop-shadow(0 0 10px rgba(255,79,160,.55))}
 .slot img{width:84px;height:84px;border-radius:14px;object-fit:cover;margin-bottom:6px}
@@ -307,10 +307,10 @@ function render(){
   $("arc").setAttribute("stroke-dasharray",(C*ch/100)+" "+C);
   $("arc").setAttribute("transform","rotate("+(90-ch*1.8)+" 100 100)");
   $("mid").innerHTML='<b>'+f(ch)+'%</b><span>Средний шанс</span>';
-  var th="";gs.slice(0,2).forEach(function(g){th+='<img src="'+gi(g)+'" style="width:52px;height:52px;border-radius:12px;object-fit:cover">'});
-  var e1=!(ex>0)&&!gs.length;$("s1").classList.toggle("emp",e1);
-  $("s1c").innerHTML=e1?ART_L:(ex>0||!gs.length?'<div class="coin"></div>':'')+th;
-  $("s1t").innerHTML=e1?'Выберите подарки для использования':f(ex)+' GRAM<small>'+(gs.length?'Ставка + '+gs.length+' подарк.':'Ставка с баланса')+'</small>';
+  (function(){var s1=$("s1"),e1=!(ex>0)&&!gs.length,g0=gs[0];s1.classList.toggle("emp",e1);s1.classList.toggle("fil",!!g0);
+    if(g0){var one=gs.length===1&&!(ex>0);s1.style.backgroundImage='url("'+gi(g0)+'")';
+      s1.innerHTML='<div class="sp">'+gem()+f(stake(),stake()<10?2:(stake()<100?1:0))+'</div>'+'<div class="t">'+(one?T[g0.t].n+'<small>'+(g0.no?'#'+g0.no:'')+'</small>':f(ex)+' GRAM<small>Ставка + '+gs.length+' подарк.</small>')+'</div>'}
+    else{s1.style.backgroundImage="";s1.innerHTML='<div class="mc" id="s1c">'+(e1?ART_L:'<div class="coin"></div>')+'</div><div class="t" id="s1t">'+(e1?'Выберите подарки для использования':f(ex)+' GRAM<small>Ставка с баланса</small>')+'</div>'}})();
   (function(){var sl=$("s2"),sg=want!==null?((S.si||[]).filter(function(x){return x.id===wantG})[0]||{t:want}):null;sl.classList.toggle("emp",want===null);sl.classList.toggle("fil",want!==null);
     if(want!==null){sl.style.backgroundImage='url("'+gi(sg)+'")';sl.innerHTML='<div class="sp">'+gem()+f(T[want].v,T[want].v<10?2:(T[want].v<100?1:0))+'</div><div class="t">'+T[want].n+'<small>'+(wantG&&sg.no?'#'+sg.no:'')+'</small></div>'}
     else{sl.style.backgroundImage="";sl.innerHTML=ART_R+'<div class="t">Выберите подарки для буста</div>'}})();
