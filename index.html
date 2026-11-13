@@ -99,6 +99,7 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 .lt .pay{width:100%;padding:17px;border-radius:26px;background:#3b8cff;color:#fff;font-weight:700;font-size:18px;margin-top:6px}
 .slots{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
 .slot{width:100%;background:var(--cd);border-radius:30px;min-height:270px;padding:12px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center;font-size:13px;color:var(--mut)}
+.slot.fil{position:relative;background:var(--cd) center 35%/cover no-repeat;overflow:hidden}.slot.fil .sp{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.62);border-radius:22px;padding:6px 16px 6px 8px;font-size:19px;font-weight:800;color:var(--ac);display:flex;align-items:center;gap:8px;white-space:nowrap}.slot.fil .sp .gem{width:26px;height:26px;font-size:13px}.slot.fil .t small{display:block;color:var(--mut);font-size:13px}
 .slot.emp{background:radial-gradient(circle at 50% 36%,rgba(255,79,160,.32),transparent 66%),var(--cd)}
 .art{position:relative;width:min(160px,38vw);aspect-ratio:104/92;flex:none;margin:auto 0 12px}.art svg{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 0 14px rgba(255,79,160,.45))}
 .slot .art img{position:absolute;left:50%;top:46%;width:44%;aspect-ratio:1;height:auto;border-radius:50%;margin:0;transform:translate(-50%,-50%);object-fit:cover;box-shadow:0 0 0 2px #ff4fa0,0 0 18px rgba(255,79,160,.5)}
@@ -266,8 +267,9 @@ var API_URL=""; // адрес твоего сервера, например "htt
 var tg=window.Telegram&&window.Telegram.WebApp,usr=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user;
 (function(){var m=document.getElementById("me");if(!m)return;
   function letter(){m.textContent=((usr&&usr.first_name)||"G").charAt(0).toUpperCase()}
-  if(usr&&usr.photo_url)m.style.backgroundImage='url("'+usr.photo_url+'")';else letter();
-  if(API_URL&&tg&&tg.initData){fetch(API_URL+"/api/avatar",{headers:{"X-Init-Data":tg.initData}}).then(function(r){if(!r.ok)throw 0;return r.blob()}).then(function(b){m.textContent="";m.style.backgroundImage='url("'+URL.createObjectURL(b)+'")'}).catch(function(){})}
+  function setPh(u){var bg='url("'+u+'")';m.style.backgroundImage=bg;var a=document.getElementById("av");if(a){a.textContent="";a.style.backgroundImage=bg;a.style.backgroundSize="cover";a.style.backgroundPosition="center";window.__avp=1}}
+  if(usr&&usr.photo_url)setPh(usr.photo_url);else letter();
+  if(API_URL&&tg&&tg.initData){fetch(API_URL+"/api/avatar",{headers:{"X-Init-Data":tg.initData}}).then(function(r){if(!r.ok)throw 0;return r.blob()}).then(function(b){m.textContent="";setPh(URL.createObjectURL(b))}).catch(function(){})}
   if(API_URL&&!(tg&&tg.initData)){document.addEventListener("DOMContentLoaded",function(){var d=document.createElement("div");d.style.cssText="position:fixed;inset:0;z-index:99999;background:#0f0f11;color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;font:600 18px system-ui";d.textContent="Открой приложение через Telegram: бот @ТВОЙ_БОТ → кнопка «Играть»";var sm=document.createElement("div");sm.style.cssText="margin-top:18px;font:12px system-ui;color:#8d8d98";sm.textContent="диагностика: SDK="+(window.Telegram&&window.Telegram.WebApp?"есть":"нет")+", initData="+((tg&&tg.initData)?"есть":"нет")+", platform="+((tg&&tg.platform)||"-");d.appendChild(document.createElement("br"));d.appendChild(sm);document.body.appendChild(d)})}
 })();
 if(tg){try{tg.ready();tg.expand()}catch(e){}}
@@ -306,7 +308,9 @@ function render(){
   var e1=!(ex>0)&&!gs.length;$("s1").classList.toggle("emp",e1);
   $("s1c").innerHTML=e1?ART_L:(ex>0||!gs.length?'<div class="coin"></div>':'')+th;
   $("s1t").innerHTML=e1?'Выберите подарки для использования':f(ex)+' GRAM<small>'+(gs.length?'Ставка + '+gs.length+' подарк.':'Ставка с баланса')+'</small>';
-  $("s2").classList.toggle("emp",want===null);$("s2").innerHTML=want!==null?'<img src="'+gi((S.si||[]).filter(function(x){return x.id===wantG})[0]||{t:want})+'"><div class="t">'+T[want].n+'<small>'+(wantG?'#'+((S.si||[]).filter(function(x){return x.id===wantG})[0]||{}).no+' · ':'')+f(T[want].v)+' GRAM</small></div>':ART_R+'<div class="t">Выберите подарки для буста</div>';
+  (function(){var sl=$("s2"),sg=want!==null?((S.si||[]).filter(function(x){return x.id===wantG})[0]||{t:want}):null;sl.classList.toggle("emp",want===null);sl.classList.toggle("fil",want!==null);
+    if(want!==null){sl.style.backgroundImage='url("'+gi(sg)+'")';sl.innerHTML='<div class="sp">'+gem()+f(T[want].v,T[want].v<10?2:(T[want].v<100?1:0))+'</div><div class="t">'+T[want].n+'<small>'+(wantG&&sg.no?'#'+sg.no:'')+'</small></div>'}
+    else{sl.style.backgroundImage="";sl.innerHTML=ART_R+'<div class="t">Выберите подарки для буста</div>'}})();
   $("ex").textContent=f(ex);$("pp").textContent=pcts+"%";$("rg").value=pcts;$("rg").style.setProperty("--p",pcts+"%");
   $("go").disabled=busy||ch<=0;$("fast").className="ic"+(fast?" on":"");
   $("pb").textContent=f(S.bal);$("po").textContent="0";markDis();$("pc").textContent=S.boosts;$("best").textContent=f(S.best);renderProf();
@@ -346,6 +350,7 @@ $("gr").onclick=function(e){
   var b=e.target.closest(".cd");if(!b||busy)return;
   if(b.dataset.s!==undefined){openBuy(+b.dataset.s);return}
   if(b.dataset.i){var id=+b.dataset.i,was=sel[id],ig=S.inv.filter(function(g){return g.id===id})[0];if(ig&&ig.pr===0){say("Этот NFT ещё оценивается","var(--bad)");return}sel={};if(!was)sel[id]=true;grid();render()}
+  else if(b.dataset.w&&+b.dataset.w===want&&(+b.dataset.g||0)===wantG){want=null;wantG=0;render();grid()}
   else if(b.dataset.w){if(stake()>0&&T[+b.dataset.w].v<=stake()){say("Выбери подарок дороже своей ставки","var(--bad)");return}if(!avail(+b.dataset.w)){say("Этого подарка сейчас нет в наличии","var(--bad)");return}want=+b.dataset.w;wantG=+b.dataset.g||0;render();grid();window.scrollTo({top:0,behavior:"smooth"})}
   else if(b.dataset.b){if(API_URL){say("Магазин пока работает только в демо-режиме");return}var i=+b.dataset.b;if(S.bal>=T[i].v){S.bal-=T[i].v;var g=mk(i);S.inv.unshift(g);save();say("Куплено: "+T[i].n+" #"+g.no,"var(--ok)");render()}else say("Не хватает баланса — пополни его","var(--bad)")}};
 $("rg").oninput=function(){pcts=parseInt(this.value)||0;render();if(tabM==2&&API_URL)grid()};
@@ -579,7 +584,7 @@ document.addEventListener("click",function(e){var t=e.target.closest&&e.target.c
 function view(p){$("vb").style.display=p?"none":"";$("vp").style.display=p?"":"none";$("n1").className=p?"":"on";$("n2").className=p?"on":""}
 $("n0").onclick=function(){$("fr").click()};$("n1").onclick=function(){view(0)};$("n2").onclick=function(){view(1)};$("me").style.cursor="pointer";$("me").onclick=function(){view(1);window.scrollTo(0,0)};
 var nm=usr?(usr.first_name||usr.username):"player",id=usr?usr.id:"0";
-$("un").textContent=nm;$("av").textContent=nm.charAt(0).toUpperCase();
+$("un").textContent=nm;if(!window.__avp)$("av").textContent=nm.charAt(0).toUpperCase();
 var link="https://t.me/ТВОЙ_БОТ?startapp=ref_"+id;$("rl").textContent=link;
 $("cp").onclick=function(){try{navigator.clipboard.writeText(link);this.textContent="Скопировано ✓"}catch(e){}};
 wlRender();$("wl").onclick=function(){if(tc){if(tc.connected){tc.disconnect()}else tc.openModal()}else{var m="Кошелёк подключается через TON Connect: нужен SDK и манифест на твоём хостинге.";if(tg&&tg.showAlert)tg.showAlert(m);else alert(m)}};
