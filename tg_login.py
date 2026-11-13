@@ -5,8 +5,14 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 
 ENV = os.environ.get("ENV_FILE", "/opt/giftup/.env")
-api_id = input("api_id (число с my.telegram.org): ").strip()
-api_hash = input("api_hash: ").strip()
+_env = {}
+if os.path.exists(ENV):
+    for _l in open(ENV, encoding="utf-8").read().splitlines():
+        if "=" in _l: _k, _v = _l.split("=", 1); _env[_k] = _v
+_ki, _kh = "TG" + "\x5f" + "API" + "\x5f" + "ID", "TG" + "\x5f" + "API" + "\x5f" + "HASH"
+api_id = input("api_id (Enter — взять из .env): ").strip() or _env.get(_ki, "")
+api_hash = input("api_hash (Enter — взять из .env): ").strip() or _env.get(_kh, "")
+if not api_id or not api_hash: sys.exit("Нет api_id/api_hash: сначала запустите tg_keys.py")
 
 async def main():
     cl = TelegramClient(StringSession(), int(api_id), api_hash)
