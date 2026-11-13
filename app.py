@@ -219,14 +219,51 @@ def tg_floor_ton(slug):
     if v: print(f"[{stamp()}] маркет Telegram: {slug} от {v:.2f} TON ({len(prices)} лотов)", flush=True)
     return round(v, 2) if v else None
 
+GAKEY = os.environ.get("GAKEY", "").strip()                # ключ Gift Asset API (giftasset.gifts)
+_ga = {"t": 0.0, "cache": {}, "warn": 0}
+_ga_lock = threading.Lock()
+
+def ga_floor(name, model):
+    """Цена модели (минимум по маркетам) из Gift Asset API, TON. Нет данных -> None. Результат по коллекции кэшируется на 15 минут."""
+    if not GAKEY or not name: return None
+    key = name.lower()
+    with _ga_lock:
+        hit_ = _ga["cache"].get(key)
+        if hit_ and time.time() - hit_[0] < 900: d = hit_[1]
+        else:
+            wait = 1.3 - (time.time() - _ga["t"])
+            if wait > 0: time.sleep(wait)
+            r = httpx.get("https://giftasset.gifts/api/v1/gifts/get" + chr(95) + "unique" + chr(95) + "gifts" + chr(95) + "price" + chr(95) + "list",
+                          params={"collection" + chr(95) + "name": name}, headers={"X-Api-Key": GAKEY}, timeout=20)
+            _ga["t"] = time.time()
+            if r.status_code != 200:
+                if time.time() - _ga["warn"] > 600: _ga["warn"] = time.time(); print("giftasset:", r.status_code, r.text[:160], flush=True)
+                return None
+            d = r.json(); _ga["cache"][key] = (time.time(), d)
+    def best(o):
+        v = [float(x) for k, x in (o or {}).items() if k in ("getgems", "mrkt", "portals", "tonnel") and isinstance(x, (int, float)) and x > 0]
+        return min(v) if v else None
+    mp = (d.get("models" + chr(95) + "prices") or {})
+    col = next((v for k, v in mp.items() if k.lower() == key), None) or {}
+    if model:
+        m = next((v for k, v in (col.get("models") or {}).items() if k.lower() == str(model).lower()), None)
+        v = best(m)
+        if v: return round(v, 2)
+    cf = (d.get("collection" + chr(95) + "floors") or {})
+    v = best(next((x for k, x in cf.items() if k.lower() == key), None))
+    return round(v, 2) if v else None
+
 def auto_price(t, base, number):
     x = CAT[t] if 0 <= t < len(CAT) else None
-    if not x or not x.get("custom") or x.get("fixed") or not _ub["cl"]: return
+    if not x or not x.get("custom") or x.get("fixed") or not (_ub["cl"] or GAKEY): return
     try:
         slug = nft_slug(base, number); v = None
-        try: v = tg_floor_ton(slug)                            # 1) нижняя цена на маркете Telegram
-        except Exception as e: print("маркет:", slug, e, flush=True)
-        if v is None: v = tg_value_ton(slug)                    # 2) «Ценность» из карточки подарка
+        try: v = ga_floor(x["name"], x.get("model"))            # 0) Gift Asset API (цена модели на маркетах)
+        except Exception as e: print("giftasset:", slug, e, flush=True)
+        if v is None and _ub["cl"]:
+            try: v = tg_floor_ton(slug)                         # 1) нижняя цена на маркете Telegram
+            except Exception as e: print("маркет:", slug, e, flush=True)
+            if v is None: v = tg_value_ton(slug)                # 2) «Ценность» из карточки подарка
         if v is None: return
         with _cat_lock: x["price"] = v; x["vp"] = True; x["priced"] = True
         c = db()
@@ -900,6 +937,27 @@ def api_import(body: dict = None, x_admin_key: str = Header("")):
         return {"ok": True, "added": n, "custom_types": [{"id": i, "name": x["name"], "model": x.get("model"), "price": x["price"]} for i, x in enumerate(CAT) if x.get("custom")]}
     except Exception as e: return {"ok": False, "error": str(e)}
 
+@app.post("/api/admin/reprice")
+def api_reprice(x_admin_key: str = Header("")):
+    """Пересчитать цены всех NFT-типов каталога по Gift Asset (фоном). Заблокированные (fixed) не трогает."""
+    if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
+    if not GAKEY: return {"ok": False, "error": "GAKEY не задан"}
+    def job():
+        n = 0
+        for x in list(CAT):
+            if not x.get("custom") or x.get("fixed"): continue
+            try: v = ga_floor(x["name"], x.get("model"))
+            except Exception as e: print("reprice:", x.get("name"), e, flush=True); continue
+            if v is None: continue
+            with _cat_lock: x["price"] = v; x["vp"] = True; x["priced"] = True
+            c = db()
+            try: c.execute("update custom set price=?, psrc=1 where id=? and fixed=0", (v, x["custom"]))
+            finally: c.close()
+            n += 1
+        print(f"[{stamp()}] reprice: обновлено цен {n}", flush=True)
+    threading.Thread(target=job, daemon=True).start()
+    return {"ok": True, "started": True}
+
 @app.post("/api/admin/clear")
 def api_clear(body: dict = None, x_admin_key: str = Header("")):
     """Убирает «старые» NFT со склада приложения (на аккаунте они остаются). {"keep":["Myth Mask"]} — эти оставить. {} — убрать все."""
@@ -1156,6 +1214,23 @@ def price_loop():   # необязательно: PRICE_SYNC=1 и pip install Te
             except Exception as e: print("price:", x["key"], e)
         time.sleep(300)
 
+def ga_loop():
+    """Каждые 5 минут пробует оценить NFT-типы, у которых ещё «На оценке» (Gift Asset)."""
+    time.sleep(20)
+    while True:
+        try:
+            for x in list(CAT):
+                if not x.get("custom") or x.get("fixed") or x.get("priced"): continue
+                v = ga_floor(x["name"], x.get("model"))
+                if v is None: continue
+                with _cat_lock: x["price"] = v; x["vp"] = True; x["priced"] = True
+                c = db()
+                try: c.execute("update custom set price=?, psrc=1 where id=? and fixed=0", (v, x["custom"]))
+                finally: c.close()
+                print(f"[{stamp()}] 💰 цена {x['name']} / {x.get('model')} = {v} GRAM (Gift Asset)", flush=True)
+        except Exception as e: print("ga_loop:", e, flush=True)
+        time.sleep(300)
+
 @app.on_event("startup")
 def startup():
     init_db(); load_custom(); ub_start()
@@ -1163,3 +1238,4 @@ def startup():
     threading.Thread(target=withdraw_loop, daemon=True).start()
     threading.Thread(target=deposit_loop, daemon=True).start()
     if os.environ.get("PRICE_SYNC") == "1": threading.Thread(target=price_loop, daemon=True).start()
+    if GAKEY: threading.Thread(target=ga_loop, daemon=True).start()
