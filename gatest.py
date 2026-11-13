@@ -1,5 +1,5 @@
 # Проверка ключа Gift Asset: python3 gatest.py   (ключ берётся из .env, переменная GAKEY; сам ключ не печатается)
-import os, sys, json
+import os, sys, json, time
 try:
     import httpx
 except ImportError:
@@ -14,7 +14,7 @@ if not key: print("GAKEY не найден в .env"); sys.exit(1)
 print("ключ найден, длина", len(key), "начало", key[:3])
 name = sys.argv[1] if len(sys.argv) > 1 else "EasterEgg-1"
 path = "/api/v1/gifts/get" + chr(95) + "gift" + chr(95) + "by" + chr(95) + "name"
-hosts = ["https://giftasset.pro", "https://giftasset.gifts"]
+hosts = ["https://giftasset.gifts"]
 hdrs = [("X-Api-Key", key), ("Authorization", "Bearer " + key), ("Authorization", key), ("api" + chr(45) + "key", key), ("X-API-KEY", key), ("apikey", key)]
 ok = None
 for h in hosts:
@@ -25,6 +25,8 @@ for h in hosts:
         except Exception as e:
             print(h, hn or "query", "ошибка:", type(e).__name__); break
         ct = r.headers.get("content-type", "")
+        time.sleep(1.3)
+        if "json" in ct and r.status_code != 200: print("   ответ:", r.text.replace(key, "***")[:300])
         print(h, hn or "query api" + chr(95) + "key", "->", r.status_code, ct[:20])
         if r.status_code == 200 and "json" in ct: ok = (h, hn, r); break
     if ok: break
