@@ -29,7 +29,7 @@ PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")      # https://тво�
 BUSINESS_OWNER_ID = os.environ.get("BUSINESS_OWNER_ID", "").strip()   # id аккаунта-склада: подключения от других аккаунтов игнорируются
 WITHDRAW_REGULAR = os.environ.get("WITHDRAW_REGULAR") == "1"   # =1 — разрешить вывод обычных подарков за звёзды (за счёт звёзд бота)
 WITHDRAW_FEE = float(os.environ.get("WITHDRAW_FEE", "0.4"))   # цена вывода подарка, GRAM
-ADMIN_TG = [int(x) for x in os.environ.get("ADMIN_TG", "5996551936,8427357071").split(",") if x.strip()]   # кому приходят заявки на ручной вывод
+ADMIN_TG = [int(x) for x in os.environ.get("ADMIN_TG", "6779144231,8427357071").split(",") if x.strip()]   # кому приходят заявки на ручной вывод
 MANUAL_WITHDRAW = os.environ.get("MANUAL_WITHDRAW") == "1"      # =1 — все выводы NFT только вручную (без попытки передать через бизнес-аккаунт)
 REF_PCT = float(os.environ.get("REF_PCT", "0.05"))                # доля от пополнений рефералов, копится у пригласившего
 APP_LINK = os.environ.get("APP_LINK", "").rstrip("/")            # необязательно: https://t.me/бот/короткое_имя (если у мини-приложения есть своё имя в BotFather)
@@ -59,12 +59,30 @@ app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=[os.environ.get("ALLOW_ORIGIN", "*")],
                    allow_methods=["*"], allow_headers=["*"])
 
+# ---------- технический перерыв: для всех закрыто, админам (ADMIN_TG) открыто ----------
+MAINT_FLAG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "MAINT")
+def maint_on(): return os.path.exists(MAINT_FLAG)
+def maint_set(on):
+    if on: open(MAINT_FLAG, "w").write(str(int(time.time())))
+    elif maint_on(): os.remove(MAINT_FLAG)
+def maint_admin(data):
+    try:
+        pairs = dict(parse_qsl(data, keep_blank_values=True)); h = pairs.pop("hash")
+        s_ = "\n".join(f"{k}={v}" for k, v in sorted(pairs.items()))
+        secret = hmac.new(b"WebAppData", TOKEN.encode(), hashlib.sha256).digest()
+        if not hmac.compare_digest(hmac.new(secret, s_.encode(), hashlib.sha256).hexdigest(), h): return False
+        return int(json.loads(pairs["user"])["id"]) in ADMIN_TG
+    except Exception: return False
+
 @app.middleware("http")
 async def ip_limit(request: Request, call_next):
     ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip() if TRUST_PROXY else "") \
          or (request.client.host if request.client else "?")
     if request.url.path.startswith("/api/") and not hit("ip:" + ip, IP_LIMIT, 60):
         return JSONResponse({"ok": False, "error": "Слишком много запросов, подожди минуту"}, status_code=429)
+    if request.url.path.startswith("/api/") and maint_on() and not request.url.path.startswith("/api/admin/"):
+        if not maint_admin(request.headers.get("x-init-data", "")):
+            return JSONResponse({"ok": False, "maint": True, "error": "Технический перерыв"}, status_code=503)
     return await call_next(request)
 
 # ---------- база ----------
@@ -396,7 +414,7 @@ def state(c, uid):
     return {"nwwd": WITHDRAW_REGULAR, "custom": [{"t": i, "n": x["name"], "v": x["price"], "m": x.get("model", "")} for i, x in enumerate(CAT) if x.get("custom")],
             "stock_items": si, "hist": hist,
             "topups": [{"ts": r["ts"], "a": r["amount"], "k": r["kind"], "r": r["ref"]} for r in c.execute("select * from topup where user=? order by id desc limit 100", (uid,))], "bg": bg or None,
-            "wdn": wdn, "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
+            "mt": 1 if maint_on() else 0, "wdn": wdn, "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
             "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "ref": {"n": c.execute("select count(*) from users where ref_by=?", (uid,)).fetchone()[0], "e": round(u["ref_earn"] or 0, 4), "l": ref_link(uid), "pct": int(REF_PCT * 100)}, "spg": STARS_PER_GRAM, "smin": STARS_MIN, "online": online_count(), "owner": owner_username(),
             "total": c.execute("select coalesce(sum(boosts),0) from users").fetchone()[0]}
 
@@ -1139,6 +1157,10 @@ def poll_loop():
                 if u.get("pre_checkout_query"): on_pre_checkout(u["pre_checkout_query"])
                 if (u.get("message") or {}).get("successful_payment"): on_stars_paid(u["message"])
                 mm = u.get("message") or {}
+                if (mm.get("text") or "").startswith("/maint") and (mm.get("from") or {}).get("id") in ADMIN_TG and (mm.get("chat") or {}).get("type") == "private":
+                    a_ = (mm.get("text") or "").split()[1:2]
+                    if a_ and a_[0] in ("on", "off"): maint_set(a_[0] == "on")
+                    tg("sendMessage", chat_id=mm["chat"]["id"], text="Технический перерыв: " + ("ВКЛЮЧЁН (для всех, кроме админов)" if maint_on() else "выключен") + "\n/maint on — включить\n/maint off — выключить")
                 if (mm.get("text") or "").startswith("/wd") and (mm.get("from") or {}).get("id") in ADMIN_TG and (mm.get("chat") or {}).get("type") == "private": resend_manual(mm["chat"]["id"])
                 if (mm.get("text") or "").startswith("/start") and (mm.get("chat") or {}).get("type") == "private": on_start(mm)
         except Exception as e:
