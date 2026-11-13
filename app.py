@@ -83,7 +83,8 @@ def init_db():
     create table if not exists deposits(hash text primary key, user integer, amount real, comment text, src text, credited integer default 0);
     create table if not exists hist(id integer primary key autoincrement, user integer, ts integer, want integer, no integer, win integer, ch real, price real);
     create table if not exists meta(k text primary key, v text);
-    create table if not exists custom(id integer primary key autoincrement, key text, model text, name text, price real);""")
+    create table if not exists custom(id integer primary key autoincrement, key text, model text, name text, price real);
+    create table if not exists topup(id integer primary key autoincrement, user integer, ts integer, amount real, kind text, ref text);""")
     try: c.execute("alter table wd add column fee real default 0")   # для старых баз
     except Exception: pass
     try: c.execute("alter table custom add column psrc integer default 0")   # 1 — цена подтверждена (вручную или по ценности Telegram)
@@ -303,7 +304,8 @@ def state(c, uid):
                       "from hist h where h.user=? order by h.id desc limit 150", (uid,))]
     bg = c.execute("select want t, no, ch from hist where user=? and win=1 order by price desc, id desc limit 1", (uid,)).fetchone()
     return {"nwwd": WITHDRAW_REGULAR, "custom": [{"t": i, "n": x["name"], "v": x["price"], "m": x.get("model", "")} for i, x in enumerate(CAT) if x.get("custom")],
-            "stock_items": si, "hist": hist, "bg": dict(bg) if bg else None,
+            "stock_items": si, "hist": hist,
+            "topups": [{"ts": r["ts"], "a": r["amount"], "k": r["kind"], "r": r["ref"]} for r in c.execute("select * from topup where user=? order by id desc limit 100", (uid,))], "bg": dict(bg) if bg else None,
             "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
             "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "spg": STARS_PER_GRAM, "smin": STARS_MIN, "online": online_count(), "owner": owner_username(),
             "total": c.execute("select coalesce(sum(boosts),0) from users").fetchone()[0]}
@@ -753,6 +755,7 @@ def api_credit(body: dict, x_admin_key: str = Header("")):
     c = db()
     try:
         get_user(c, int(body["user"])); c.execute("update users set bal=bal+? where id=?", (float(body["amount"]), int(body["user"])))
+        c.execute("insert into topup(user,ts,amount,kind,ref) values(?,?,?,?,?)", (int(body["user"]), int(time.time()), float(body["amount"]), "admin", "Начисление"))
         return {"ok": True}
     finally: c.close()
 
@@ -1059,6 +1062,7 @@ def on_stars_paid(m):
             get_user(c, tu, (m.get("from") or {}).get("first_name", ""))
             c.execute("update users set bal=bal+? where id=?", (gm, tu))
             c.execute("insert into star_pay(charge,user,type,stars,ok) values(?,?,?,?,1)", (charge, tu, -1, tn))
+            c.execute("insert into topup(user,ts,amount,kind,ref) values(?,?,?,?,?)", (tu, int(time.time()), gm, "stars", f"{tn} Stars"))
             c.execute("commit")
         except Exception:
             c.execute("rollback"); raise
@@ -1112,7 +1116,10 @@ def process_deposits(txs):
                 ok = bool(uid is not None and amount >= MIN_DEPOSIT and c.execute("select 1 from users where id=?", (uid,)).fetchone())
                 c.execute("insert into deposits(hash,user,amount,comment,src,credited) values(?,?,?,?,?,?)",
                           (h, uid, amount, comment[:100], m.get("source"), 1 if ok else 0))
-                if ok: c.execute("update users set bal=bal+? where id=?", (amount, uid))
+                if ok:
+                    c.execute("update users set bal=bal+? where id=?", (amount, uid))
+                    src = m.get("source") or ""
+                    c.execute("insert into topup(user,ts,amount,kind,ref) values(?,?,?,?,?)", (uid, int(time.time()), amount, "ton", (src[:6] + "..." + src[-5:]) if len(src) > 12 else src))
                 c.execute("commit")
             except Exception:
                 c.execute("rollback"); raise
