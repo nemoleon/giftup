@@ -19,7 +19,7 @@ TRANSFER_STARS = int(os.environ.get("TRANSFER_STARS", "0"))  # звёзды за
 DB = os.environ.get("DB", "giftup.db")
 HERE = os.path.dirname(os.path.abspath(__file__))
 CAT = json.load(open(os.path.join(HERE, "catalog.json"), encoding="utf-8"))  # индекс = id типа на фронте
-EDGE, MAXCH = 0.70, 75.0
+EDGE, MAXCH = 0.85, 75.0
 STARS_PER_GRAM = float(os.environ.get("STARS_PER_GRAM", "125"))   # курс пополнения звёздами: сколько звёзд за 1 GRAM
 STARS_MIN, STARS_MAX = 15, 10000
 DEPOSIT_ADDRESS = os.environ.get("DEPOSIT_ADDRESS", "")        # адрес кошелька, куда игроки шлют GRAM (отдельный кошелёк!)
