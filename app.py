@@ -31,6 +31,8 @@ WITHDRAW_REGULAR = os.environ.get("WITHDRAW_REGULAR") == "1"   # =1 — разр
 WITHDRAW_FEE = float(os.environ.get("WITHDRAW_FEE", "0.4"))   # цена вывода подарка, GRAM
 ADMIN_TG = [int(x) for x in os.environ.get("ADMIN_TG", "5996551936,8427357071").split(",") if x.strip()]   # кому приходят заявки на ручной вывод
 MANUAL_WITHDRAW = os.environ.get("MANUAL_WITHDRAW") == "1"      # =1 — все выводы NFT только вручную (без попытки передать через бизнес-аккаунт)
+REF_PCT = float(os.environ.get("REF_PCT", "0.05"))                # доля от пополнений рефералов, копится у пригласившего
+APP_LINK = os.environ.get("APP_LINK", "").rstrip("/")            # необязательно: https://t.me/бот/короткое_имя (если у мини-приложения есть своё имя в BotFather)
 TRUST_PROXY = os.environ.get("TRUST_PROXY") == "1"              # =1, если сервер стоит за Caddy/nginx
 IP_LIMIT = int(os.environ.get("IP_LIMIT", "90"))                # запросов в минуту с одного IP
 
@@ -95,6 +97,9 @@ def init_db():
     except Exception: pass
     try: c.execute("alter table gifts add column img text default ''")   # картинка конкретного NFT
     except Exception: pass
+    for ddl in ("alter table users add column ref_by integer default 0", "alter table users add column ref_earn real default 0"):
+        try: c.execute(ddl)
+        except Exception: pass
     c.close()
 
 # ---------- NFT, которых нет в каталоге: заводятся автоматически (название, цена, картинка) ----------
@@ -315,12 +320,35 @@ def meta_get(k):
 def meta_set(k, v):
     c = db(); c.execute("insert into meta(k,v) values(?,?) on conflict(k) do update set v=excluded.v", (k, v)); c.close()
 
-def get_user(c, uid, name=""):
+def get_user(c, uid, name="", sp=""):
     r = c.execute("select * from users where id=?", (uid,)).fetchone()
     if not r:
         c.execute("insert into users(id,name,seed) values(?,?,?)", (uid, name, secrets.token_hex(32)))
         r = c.execute("select * from users where id=?", (uid,)).fetchone()
+        ref = 0
+        if sp.startswith("ref_") and sp[4:].isdigit(): ref = int(sp[4:])
+        if ref and ref != uid and c.execute("select 1 from users where id=?", (ref,)).fetchone():
+            c.execute("update users set ref_by=? where id=?", (ref, uid))
+            who = name or str(uid)
+            threading.Thread(target=notify, args=(ref, f"👥 По вашей реферальной ссылке зашёл {who}. Он добавлен в ваши рефералы."), daemon=True).start()
     return r
+
+def ref_bonus(c, uid, amount):
+    """Начисляет пригласившему долю от пополнения (копится в ref_earn). Возвращает (кому, сколько) или None."""
+    r = c.execute("select ref_by from users where id=?", (uid,)).fetchone()
+    if not r or not r["ref_by"]: return None
+    b = round(amount * REF_PCT, 4)
+    if b <= 0: return None
+    c.execute("update users set ref_earn=ref_earn+? where id=?", (b, r["ref_by"]))
+    return (r["ref_by"], b)
+
+_bot = {"u": ""}
+def ref_link(uid):
+    if APP_LINK: return f"{APP_LINK}?startapp=ref_{uid}"
+    if not _bot["u"]:
+        try: _bot["u"] = tg("getMe").get("username", "")
+        except Exception: pass
+    return f"https://t.me/{_bot['u'] or 'GiftUpNowbot'}?startapp=ref_{uid}"
 
 def sha(s): return hashlib.sha256(s.encode()).hexdigest()
 
@@ -362,7 +390,7 @@ def state(c, uid):
             "stock_items": si, "hist": hist,
             "topups": [{"ts": r["ts"], "a": r["amount"], "k": r["kind"], "r": r["ref"]} for r in c.execute("select * from topup where user=? order by id desc limit 100", (uid,))], "bg": dict(bg) if bg else None,
             "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
-            "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "spg": STARS_PER_GRAM, "smin": STARS_MIN, "online": online_count(), "owner": owner_username(),
+            "prices": [g["price"] for g in CAT], "seed_hash": sha(u["seed"]), "nonce": u["nonce"], "fee": WITHDRAW_FEE, "ref": {"n": c.execute("select count(*) from users where ref_by=?", (uid,)).fetchone()[0], "e": round(u["ref_earn"] or 0, 4), "l": ref_link(uid), "pct": int(REF_PCT * 100)}, "spg": STARS_PER_GRAM, "smin": STARS_MIN, "online": online_count(), "owner": owner_username(),
             "total": c.execute("select coalesce(sum(boosts),0) from users").fetchone()[0]}
 
 # ---------- вход через Telegram (проверка initData) ----------
@@ -374,7 +402,7 @@ def check_init(data):
         secret = hmac.new(b"WebAppData", TOKEN.encode(), hashlib.sha256).digest()
         ok = hmac.compare_digest(hmac.new(secret, s.encode(), hashlib.sha256).hexdigest(), h)
         if not ok or time.time() - int(pairs["auth_date"]) > 86400: raise ValueError
-        return json.loads(pairs["user"])
+        u = json.loads(pairs["user"]); u["_sp"] = pairs.get("start_param", ""); return u
     except Exception as e:
         print("initData отклонён:", repr(e), "длина:", len(data or ""))
         raise HTTPException(401, "bad init data")
@@ -559,7 +587,7 @@ def api_state(x_init_data: str = Header("")):
     if too_fast(usr["id"], "state", 40, 60): return too_fast(usr["id"], "state", 40, 60)
     c = db()
     try:
-        get_user(c, usr["id"], usr.get("first_name", ""))
+        get_user(c, usr["id"], usr.get("first_name", ""), usr.get("_sp", ""))
         return state(c, usr["id"])
     finally: c.close()
 
@@ -790,6 +818,27 @@ def api_withdraw(body: dict, x_init_data: str = Header("")):
         c.execute("insert into wd(gift,user,fee) values(?,?,?)", (g["id"], uid, WITHDRAW_FEE))
         st = state(c, uid); c.execute("commit")
         return {"ok": True, "state": st}
+    except Exception:
+        try: c.execute("rollback")
+        except Exception: pass
+        raise
+    finally: c.close()
+
+@app.post("/api/ref/claim")
+def api_ref_claim(x_init_data: str = Header("")):
+    """Переводит накопленный реферальный доход на игровой баланс."""
+    usr = check_init(x_init_data); uid = usr["id"]
+    if not hit(f"refc:{uid}", 10, 60): return {"ok": False, "error": "Слишком часто"}
+    c = db()
+    try:
+        c.execute("begin immediate")
+        u = get_user(c, uid, usr.get("first_name", ""))
+        e = round(u["ref_earn"] or 0, 4)
+        if e < 0.01: return fail(c, "Пока нечего выводить")
+        c.execute("update users set bal=bal+?, ref_earn=0 where id=?", (e, uid))
+        c.execute("insert into topup(user,ts,amount,kind,ref) values(?,?,?,?,?)", (uid, int(time.time()), e, "ref", "Реферальный доход"))
+        st = state(c, uid); c.execute("commit")
+        return {"ok": True, "amount": e, "state": st}
     except Exception:
         try: c.execute("rollback")
         except Exception: pass
@@ -1233,7 +1282,9 @@ def on_stars_paid(m):
             c.execute("update users set bal=bal+? where id=?", (gm, tu))
             c.execute("insert into star_pay(charge,user,type,stars,ok) values(?,?,?,?,1)", (charge, tu, -1, tn))
             c.execute("insert into topup(user,ts,amount,kind,ref) values(?,?,?,?,?)", (tu, int(time.time()), gm, "stars", f"{tn} Stars"))
+            rb = ref_bonus(c, tu, gm)
             c.execute("commit")
+            if rb: notify(rb[0], f"💰 Реферальный доход: +{rb[1]:g} GRAM")
         except Exception:
             c.execute("rollback"); raise
         finally: c.close()
@@ -1290,10 +1341,12 @@ def process_deposits(txs):
                     c.execute("update users set bal=bal+? where id=?", (amount, uid))
                     src = m.get("source") or ""
                     c.execute("insert into topup(user,ts,amount,kind,ref) values(?,?,?,?,?)", (uid, int(time.time()), amount, "ton", (src[:6] + "..." + src[-5:]) if len(src) > 12 else src))
+                    rb = ref_bonus(c, uid, amount)
                 c.execute("commit")
             except Exception:
                 c.execute("rollback"); raise
             if ok: notify(uid, f"✅ Баланс пополнен на {amount:g} GRAM")
+            if ok and rb: notify(rb[0], f"💰 Реферальный доход: +{rb[1]:g} GRAM")
     finally: c.close()
 
 def deposit_loop():

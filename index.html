@@ -149,6 +149,10 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 .big{font-size:40px;font-weight:800;text-align:center;margin:6px 0}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.two .card{margin:0}.two b{font-size:26px}
 .ln{background:var(--cd2);border-radius:14px;padding:10px;font-size:12px;color:var(--mut);word-break:break-all;margin-top:8px}
+.rfc{padding:14px}.rfh{display:flex;align-items:center;gap:12px;margin-bottom:12px}.rfh b{display:block;font-size:19px}.rfh small{color:var(--mut);font-size:14px}.rfi{width:52px;height:52px;border-radius:50%;background:var(--cd2);display:flex;align-items:center;justify-content:center;flex:none}
+.rft{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.rtl{position:relative;background:var(--cd2);border-radius:22px;padding:14px;min-height:96px}.rtl b{display:flex;align-items:center;gap:6px;font-size:26px}.rtl .gem{width:20px;height:20px}.rtl small{display:block;color:var(--mut);font-size:15px;margin-top:2px}
+.rbt{width:46px;height:46px;border-radius:50%;background:#35252f;color:var(--mut);display:flex;align-items:center;justify-content:center;flex:none}.rbt.on{background:var(--ac);color:#000}.rtl .rbt{position:absolute;right:10px;bottom:10px}.rbt:disabled{opacity:.5}
+.rfl{display:flex;align-items:center;gap:8px;background:var(--cd2);border-radius:26px;padding:6px 6px 6px 16px}.rfl #rl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mut);font-size:15px}.rbt.sm2{width:44px;height:44px;background:#35252f;color:var(--tx)}
 .sm{background:var(--cd2);border-radius:14px;padding:8px 14px;font-weight:600}
 .note{font-size:12px;color:var(--mut);text-align:center;margin-top:10px}
 #sp{display:none!important;position:fixed;inset:0;z-index:99;background:#0f0f11;display:flex;align-items:center;justify-content:center;transition:opacity .5s}
@@ -225,7 +229,10 @@ requestAnimationFrame(frame)})();
  <div style="text-align:center;color:var(--mut)">Ваш баланс</div><div class="big"><span class="gem" style="width:34px;height:34px;font-size:16px"></span> <span id="pb">0</span></div>
  <div class="dprow"><button class="go" id="dep2">Пополнить</button><button class="dph" id="tph" aria-label="История пополнений"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5"/><path d="M3.5 3.8v4.7h4.7"/><path d="M12 7.5V12l3 2"/></svg></button></div>
  <div class="two"><div class="card"><b id="po">0</b><div style="color:var(--mut)">Выведено</div></div><div class="card"><b id="pc">0</b><div style="color:var(--mut)">Бустов</div></div></div>
- <div class="card"><b>Реферальная программа</b><div style="color:var(--mut);font-size:13px">5% от депозитов рефералов</div><div class="ln" id="rl"></div><button class="sm" id="cp" style="margin-top:8px">Скопировать ссылку</button></div>
+ <div class="card rfc"><div class="rfh"><span class="rfi"><svg viewBox="0 0 24 24" width="26" height="26" fill="#ff4fa0"><circle cx="8.5" cy="8" r="3.6"/><circle cx="16.5" cy="8.6" r="3"/><path d="M1.5 19c0-3.6 3-6 7-6s7 2.4 7 6z"/><path d="M16 13.4c3.6 0 6.5 2 6.5 5.1h-5.2c0-2-.6-3.6-1.9-5z" opacity=".8"/></svg></span><div><b>Реферальная программа</b><small id="rfp">5% от депозитов рефералов</small></div></div>
+ <div class="rft"><div class="rtl"><b id="rfn">0</b><small>Рефералов</small><button class="rbt on" id="rfsh" aria-label="Пригласить"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#000" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+ <div class="rtl"><b><span id="rfe">0.00</span> <span class="gem"></span></b><small>Заработано</small><button class="rbt" id="rfcl" aria-label="Вывести на баланс"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></button></div></div>
+ <div class="rfl"><span id="rl"></span><button class="rbt sm2" id="rfop" aria-label="Поделиться"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/></svg></button><button class="rbt sm2" id="cp" aria-label="Скопировать"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg></button></div></div>
  <div class="card" id="bgc"><div class="row" style="justify-content:space-between"><div class="row" style="gap:10px"><span class="crn">👑</span><b style="font-size:19px">Лучший буст</b></div><span class="vp2"><span id="best">0</span> <span class="gem g2" style="width:18px;height:18px"></span></span></div><div id="bgb"></div></div>
  <div class="card"><div class="ptabs"><button id="pt1" class="on">Инвентарь</button><button id="pt2">История подарков</button></div><div id="pbody"></div></div>
 </div>
@@ -309,7 +316,7 @@ function api(path,body){var o={headers:{"X-Init-Data":(tg&&tg.initData)||""}};
   if(body!==undefined){o.method="POST";o.headers["Content-Type"]="application/json";o.body=JSON.stringify(body)}
   return fetch(API_URL+path,o).then(function(r){if(r.status===502||r.status===503||r.status===504)throw new Error("down");return r.json()})}
 var mtFail=0;function mtSet(on){var m=document.getElementById("mt");if(m)m.classList.toggle("show",!!on)}
-function applyState(st){S.bal=st.bal;S.boosts=st.boosts;S.online=st.online;S.total=st.total;S.best=st.best;S.inv=st.inv;S.hist=st.hist||[];S.tp=st.topups||[];S.si=st.stock_items||[];S.bg=st.bg||null;S.owner=st.owner||"";S.nwwd=!!st.nwwd;if(st.fee!==undefined)WITHDRAW_FEE=st.fee;if(st.spg)SPG=st.spg;if(st.smin)SMIN=st.smin;
+function applyState(st){S.bal=st.bal;S.boosts=st.boosts;S.online=st.online;S.total=st.total;S.best=st.best;S.inv=st.inv;S.hist=st.hist||[];S.tp=st.topups||[];S.si=st.stock_items||[];S.bg=st.bg||null;S.owner=st.owner||"";S.ref=st.ref||null;S.nwwd=!!st.nwwd;if(st.fee!==undefined)WITHDRAW_FEE=st.fee;if(st.spg)SPG=st.spg;if(st.smin)SMIN=st.smin;
   (st.custom||[]).forEach(function(x){T[x.t]={n:x.n,v:x.v,ok:1,custom:1};IM[x.t]=PH;KEYS[x.t]=x.n});
   st.prices.forEach(function(p,i){if(T[i]){T[i].v=p;T[i].ok=1}});T.forEach(function(t,i){t.stock=st.stock[i]||0})}
 function sync(){if(!API_URL)return Promise.resolve();return api("/api/state").then(function(st){mtFail=0;mtSet(false);if(st&&st.inv){applyState(st);render();if(!busy)grid()}}).catch(function(){mtFail++;if(mtFail>=2||!spReady)mtSet(true);say("Нет связи с сервером","var(--bad)")})}
@@ -338,7 +345,7 @@ function render(){
     else{sl.style.backgroundImage="";sl.innerHTML=ART_R+'<div class="t">Выберите подарки для буста</div>'}})();
   $("ex").textContent=f(ex);$("pp").textContent=pcts+"%";$("rg").value=pcts;$("rg").style.setProperty("--p",pcts+"%");
   $("go").disabled=busy||ch<=0;$("fast").className="ic"+(fast?" on":"");
-  $("pb").textContent=f(S.bal);$("po").textContent="0";markDis();$("pc").textContent=S.boosts;$("best").textContent=f(S.best);renderProf();
+  refRender();$("pb").textContent=f(S.bal);$("po").textContent="0";markDis();$("pc").textContent=S.boosts;$("best").textContent=f(S.best);renderProf();
 }
 function card(i,sub,on,attr,img){return '<button class="cd'+(on?' on':'')+'" '+attr+' style="background-image:url('+(img||IM[i])+')"><span class="pb">'+gem()+(T[i].ok?'':'≈')+f(T[i].v,T[i].v<10?2:(T[i].v<100?1:0))+'</span><div class="nm">'+T[i].n+'<small>'+sub+'</small></div></button>'}
 function scard(i){var x=T[i];return '<button class="cd sc" data-s="'+i+'" style="background-image:url('+IM[i]+')"><span class="pb"><span class="stp"></span>'+x.st+'</span><div class="nm">'+x.n+'<small>'+(x.nw?"Обычный":"Коллекция")+'</small></div></button>'}
@@ -662,8 +669,13 @@ function view(p){$("vb").style.display=p?"none":"";$("vp").style.display=p?"":"n
 $("n0").onclick=function(){say("Скоро")};$("n1").onclick=function(){view(0)};$("n2").onclick=function(){view(1)};$("me").style.cursor="pointer";$("me").onclick=function(){view(1);window.scrollTo(0,0)};
 var nm=usr?(usr.first_name||usr.username):"player",id=usr?usr.id:"0";
 $("un").textContent=nm;if(!window.__avp)$("av").textContent=nm.charAt(0).toUpperCase();
-var link="https://t.me/ТВОЙ_БОТ?startapp=ref_"+id;$("rl").textContent=link;
-$("cp").onclick=function(){try{navigator.clipboard.writeText(link);this.textContent="Скопировано ✓"}catch(e){}};
+var REFTXT="Забусти свои любые подарки, даже мишку за 15 ⭐ в Gift Up Now";
+function refLink(){return (S.ref&&S.ref.l)||("https://t.me/GiftUpNowbot?startapp=ref_"+id)}
+function refRender(){var r=S.ref||{n:0,e:0,pct:5};$("rl").textContent=refLink();$("rfn").textContent=r.n;$("rfe").textContent=f(r.e);$("rfp").textContent=(r.pct||5)+"% от депозитов рефералов";$("rfcl").className="rbt"+(r.e>=0.01?" on":"");$("rfcl").disabled=!(r.e>=0.01)}
+function refShare(){var u="https://t.me/share/url?url="+encodeURIComponent(refLink())+"&text="+encodeURIComponent(REFTXT);try{if(tg&&tg.openTelegramLink)tg.openTelegramLink(u);else window.open(u,"_blank")}catch(e){}}
+$("rfsh").onclick=refShare;$("rfop").onclick=refShare;
+$("cp").onclick=function(){var b=this;try{navigator.clipboard.writeText(refLink())}catch(e){}b.style.color="var(--ac)";setTimeout(function(){b.style.color=""},1200)};
+$("rfcl").onclick=function(){var b=this;if(b.disabled||!API_URL)return;b.disabled=true;api("/api/ref/claim").then(function(r){if(r&&r.ok){applyState(r.state);render()}else{refRender()}}).catch(function(){refRender()})};
 wlRender();$("wl").onclick=function(){if(tc){if(tc.connected){tc.disconnect()}else tc.openModal()}else{var m="Кошелёк подключается через TON Connect: нужен SDK и манифест на твоём хостинге.";if(tg&&tg.showAlert)tg.showAlert(m);else alert(m)}};
 // авто-цены с твоего сервера (см. server.py): {"Genie Lamp": 37.3, ...}
 function loadPrices(){if(!PRICE_URL)return;fetch(PRICE_URL).then(function(r){return r.json()}).then(function(d){
