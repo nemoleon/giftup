@@ -121,6 +121,10 @@ def init_db():
     create table if not exists case_open(user integer primary key, gift integer, ts integer, status text default 'pending', gid integer);
     create table if not exists case_bind(friend integer primary key, inviter integer, ts integer);
     create table if not exists case_ref(friend integer primary key, inviter integer, ts integer);""")
+    if "gid" not in [r[1] for r in c.execute("pragma table_info(case_open)")]:   # старый формат кейса (с бронью подарка) → новый
+        c.execute("update gifts set status='house', owner=NULL where status='case'")
+        c.execute("drop table case_open")
+        c.execute("create table case_open(user integer primary key, gift integer, ts integer, status text default 'pending', gid integer)")
     try: c.execute("alter table wd add column fee real default 0")   # для старых баз
     except Exception: pass
     try: c.execute("alter table custom add column psrc integer default 0")   # 1 — цена подтверждена (вручную или по ценности Telegram)
