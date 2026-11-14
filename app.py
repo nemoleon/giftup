@@ -968,8 +968,8 @@ def api_case_spin(x_init_data: str = Header("")):
         if c.execute("select 1 from case_open where user=?", (uid,)).fetchone(): return fail(c, "Вы уже открывали этот кейс")
         if c.execute("select count(*) from case_open where ts>?", (int(time.time()) - 86400,)).fetchone()[0] >= CASE_DAILY:
             return fail(c, "На сегодня кейсы закончились, загляните завтра")
-        pool = sorted({r["type"] for r in c.execute("select distinct type from gifts where status='house' and type>=0") if case_names_of(r["type"]) in CASE_NAMES})
-        if not pool: return fail(c, "Кейс временно пуст — призы скоро пополнятся")
+        pool = sorted({i for i in range(len(CAT)) if case_names_of(i) in CASE_NAMES})   # витрина: призы показываем всегда, наличие проверяется при выдаче
+        if not pool: return fail(c, "Кейс временно недоступен")
         t = secrets.choice(pool)  # поровну между типами; подарок не бронируется: кто первым выполнит условия, тот и заберёт
         c.execute("insert into case_open(user,gift,ts,status) values(?,?,?,'pending')", (uid, t, int(time.time())))
         cr = case_credit(c, uid, premium)
