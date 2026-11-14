@@ -217,7 +217,7 @@ requestAnimationFrame(frame)})();
 <div class="slots">
 <div class="slot" id="s1"><div class="mc" id="s1c"></div><div class="t" id="s1t"></div></div>
 <button class="slot" id="s2"></button></div>
-<div class="stake"><div><div style="color:var(--mut);font-size:13px">Ставка</div><b style="font-size:22px"><span class="gem"></span> <span id="ex">0.00</span></b></div><input type="range" id="rg" min="0" max="100" step="1" value="0"><div class="pill" style="min-width:64px;justify-content:center" id="pp">0%</div></div>
+<div class="stake"><div><div style="color:var(--mut);font-size:13px">Ставка</div><b style="font-size:22px"><span class="gem"></span> <span id="ex">0.00</span></b></div><input type="range" id="rg" min="0" max="100" step="0.01" value="0"><div class="pill" style="min-width:64px;justify-content:center" id="pp">0%</div></div>
 <div class="act"><button class="ic" id="fast" aria-label="Быстрый режим"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M13 2.8L5.2 13.2h5.3L9.6 21.2 18.8 10.4h-5.5z"/></svg></button><button class="go" id="go" style="flex:1">Забустить</button><button class="ic" id="set" aria-label="Настройки"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M10.3 3h3.4l.5 2.4 1.7.8 2.1-1.3 2.4 2.4-1.3 2.1.8 1.7 2.4.5v3.4l-2.4.5-.8 1.7 1.3 2.1-2.4 2.4-2.1-1.3-1.7.8-.5 2.4h-3.4l-.5-2.4-1.7-.8-2.1 1.3-2.4-2.4 1.3-2.1-.8-1.7L2.8 13.7v-3.4l2.4-.5.8-1.7-1.3-2.1 2.4-2.4 2.1 1.3 1.7-.8z"/></svg></button></div>
 <div class="chips" id="chips"><button class="chp" data-x="2">x2</button><button class="chp" data-x="4">x4</button><button class="chp" data-x="8">x8</button><button class="chp c35" data-p="35">35%</button><button class="chp c55" data-p="55">55%</button><button class="chp c75" data-p="75">75%</button></div>
 <div class="msg" id="msg">Добавь ставку и выбери желаемый подарок</div>
@@ -295,7 +295,7 @@ var T=[
 T[12].st=814;T[12].e="🐕";
 var START=[[0,292055],[1,3764],[0,99103],[2,228194],[3,58862],[4,66269],[5,86113],[6,92443],[7,184550],[8,110655],[9,333432],[10,130698],[11,291808],[12,576131],[13,36003]];
 var STAR_RATE=0.0075; // сколько GRAM «стоит» 1 звезда (для оценки подарков из магазина звёзд)
-var PRICE_URL="",EDGE=0.95,C=2*Math.PI*80;
+var PRICE_URL="",EDGE=0.80,C=2*Math.PI*80;
 var WITHDRAW_FEE=0.4; // цена вывода подарка в GRAM (сервер сообщает своё значение)
 var API_URL=""; // адрес твоего сервера, например "https://giftup.example.com". Пусто = демо без сервера
 var tg=window.Telegram&&window.Telegram.WebApp,usr=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user;
@@ -320,14 +320,14 @@ function api(path,body){var o={headers:{"X-Init-Data":(tg&&tg.initData)||""}};
   if(body!==undefined){o.method="POST";o.headers["Content-Type"]="application/json";o.body=JSON.stringify(body)}
   return fetch(API_URL+path,o).then(function(r){if(r.status===502||r.status===503||r.status===504)throw new Error("down");return r.json()})}
 var mtFail=0;function mtSet(on){var m=document.getElementById("mt");if(m)m.classList.toggle("show",!!on)}
-function applyState(st){var mp=document.getElementById("mtp");if(st.mt&&!mp){mp=document.createElement("div");mp.id="mtp";mp.textContent="Техперерыв включён — видите только вы";mp.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:9000;background:#ff4fa0;color:#fff;font:700 13px system-ui;padding:6px 14px;border-radius:14px;pointer-events:none;opacity:.92";document.body.appendChild(mp)}else if(!st.mt&&mp)mp.remove();S.bal=st.bal;S.boosts=st.boosts;S.online=st.online;S.total=st.total;S.best=st.best;S.wdn=st.wdn||0;S.inv=st.inv;S.hist=st.hist||[];S.tp=st.topups||[];S.si=st.stock_items||[];S.bg=st.bg||null;S.owner=st.owner||"";S.ref=st.ref||null;S.nwwd=!!st.nwwd;if(st.fee!==undefined)WITHDRAW_FEE=st.fee;if(st.spg)SPG=st.spg;if(st.smin)SMIN=st.smin;
+function applyState(st){var dp=document.getElementById("dmp");if(st.demo&&!dp){dp=document.createElement("div");dp.id="dmp";dp.textContent="ДЕМО";dp.style.cssText="position:fixed;left:50%;transform:translateX(-50%);top:calc(6px + var(--ti,0px));z-index:99990;background:#ff4fa0;color:#fff;font:800 14px system-ui;letter-spacing:.12em;padding:4px 16px;border-radius:14px;pointer-events:none";document.body.appendChild(dp)}else if(!st.demo&&dp)dp.remove();var mp=document.getElementById("mtp");if(st.mt&&!mp){mp=document.createElement("div");mp.id="mtp";mp.textContent="Техперерыв включён — видите только вы";mp.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:9000;background:#ff4fa0;color:#fff;font:700 13px system-ui;padding:6px 14px;border-radius:14px;pointer-events:none;opacity:.92";document.body.appendChild(mp)}else if(!st.mt&&mp)mp.remove();S.bal=st.bal;S.boosts=st.boosts;S.online=st.online;S.total=st.total;S.best=st.best;S.wdn=st.wdn||0;S.inv=st.inv;S.hist=st.hist||[];S.tp=st.topups||[];S.si=st.stock_items||[];S.bg=st.bg||null;S.owner=st.owner||"";S.ref=st.ref||null;S.nwwd=!!st.nwwd;if(st.fee!==undefined)WITHDRAW_FEE=st.fee;if(st.spg)SPG=st.spg;if(st.smin)SMIN=st.smin;
   (st.custom||[]).forEach(function(x){T[x.t]={n:x.n,v:x.v,ok:1,custom:1};IM[x.t]=PH;KEYS[x.t]=x.n});
   st.prices.forEach(function(p,i){if(T[i]){T[i].v=p;T[i].ok=1}});T.forEach(function(t,i){t.stock=st.stock[i]||0})}
 function sync(){if(!API_URL)return Promise.resolve();return api("/api/state").then(function(st){mtFail=0;mtSet(false);if(st&&st.inv){applyState(st);render();if(!busy)grid()}}).catch(function(){mtFail++;if(mtFail>=2||!spReady)mtSet(true);say("Нет связи с сервером","var(--bad)")})}
 var ghostPg=0,sortDesc=true,qry="",sel={},want=null,wantG=0,pcts=0,busy=false,rot=0,tabM=1,tabU=1,fast=false,hap=true;
 function extra(){return S.bal*pcts/100}
 function gem(){return '<span class="gem"></span>'}
-function maxPct(){if(want===null||!(S.bal>0))return 100;var room=0.75*T[want].v/EDGE,gs=0;S.inv.forEach(function(g){if(sel[g.id])gs+=T[g.t].v});room-=gs;if(room<=0)return 0;return Math.max(0,Math.min(100,Math.floor(room/S.bal*100-1e-9)))}
+function maxPct(){if(want===null||!(S.bal>0))return 100;var room=0.75*T[want].v/EDGE,gs=0;S.inv.forEach(function(g){if(sel[g.id])gs+=T[g.t].v});room-=gs;if(room<=0)return 0;return Math.max(0,Math.min(100,Math.floor(room/S.bal*10000-1e-6)/100))}
 function stake(){var s=extra();S.inv.forEach(function(g){if(sel[g.id])s+=T[g.t].v});return s}
 function chance(){if(want===null)return 0;return Math.min(75,stake()/T[want].v*100*EDGE)}
 function say(m,c){}   // текстовые уведомления отключены
@@ -347,7 +347,7 @@ function render(){
   (function(){var sl=$("s2"),sg=want!==null?((S.si||[]).filter(function(x){return x.id===wantG})[0]||(S.si||[]).filter(function(x){return x.t===want&&x.im})[0]||{t:want}):null;sl.classList.toggle("emp",want===null);sl.classList.toggle("fil",want!==null);
     if(want!==null){sl.style.backgroundImage='url("'+gi(sg)+'")';sl.innerHTML='<div class="sp">'+gem()+f(T[want].v,T[want].v<10?2:(T[want].v<100?1:0))+'</div><div class="t">'+T[want].n+'<small>'+(wantG&&sg.no?'#'+sg.no:'')+'</small></div>'}
     else{sl.style.backgroundImage="";sl.innerHTML=ART_R+'<div class="t">Выберите подарки для буста</div>'}})();
-  $("ex").textContent=f(ex);$("pp").textContent=pcts+"%";$("rg").value=pcts;$("rg").style.setProperty("--p",pcts+"%");
+  $("ex").textContent=f(ex);$("pp").textContent=(pcts%1?(pcts<10?pcts.toFixed(2):pcts.toFixed(1)):pcts)+"%";$("rg").value=pcts;$("rg").style.setProperty("--p",pcts+"%");
   $("go").disabled=busy||ch<=0;$("fast").className="ic"+(fast?" on":"");
   refRender();$("pb").textContent=f(S.bal);$("po").textContent=f(S.wdn||0);markDis();$("pc").textContent=S.boosts;$("best").textContent=f(S.best);renderProf();
 }
@@ -446,7 +446,7 @@ $("gr").onclick=function(e){
   else if(b.dataset.w&&+b.dataset.w===want&&(+b.dataset.g||0)===wantG){want=null;wantG=0;render();grid()}
   else if(b.dataset.w){if(stake()>0&&T[+b.dataset.w].v<=stake()){say("Выбери подарок дороже своей ставки","var(--bad)");return}if(!avail(+b.dataset.w)){say("Этого подарка сейчас нет в наличии","var(--bad)");return}want=+b.dataset.w;wantG=+b.dataset.g||0;render();grid();window.scrollTo({top:0,behavior:"smooth"})}
   else if(b.dataset.b){if(API_URL){say("Магазин пока работает только в демо-режиме");return}var i=+b.dataset.b;if(S.bal>=T[i].v){S.bal-=T[i].v;var g=mk(i);S.inv.unshift(g);save();say("Куплено: "+T[i].n+" #"+g.no,"var(--ok)");render()}else say("Не хватает баланса — пополни его","var(--bad)")}};
-$("rg").oninput=function(){pcts=Math.min(parseInt(this.value)||0,maxPct());render();if(tabM==2&&API_URL)grid()};
+$("rg").oninput=function(){pcts=Math.min(Math.round((parseFloat(this.value)||0)*100)/100,maxPct());render();if(tabM==2&&API_URL)grid()};
 function near(tv){var st=stake(),b=-1,bd=1e18,mx=0;T.forEach(function(t,i){if(!avail(i))return;if(t.v>T[mx].v)mx=i;if(t.v<=st)return;var d=Math.abs(t.v-tv);if(d<bd){bd=d;b=i}});return b<0?mx:b}
 $("chips").onclick=function(e){var b=e.target.closest(".chp");if(!b||busy)return;var st=stake();
   if(st<=0){say("Сначала добавь ставку: подарки или % баланса","var(--bad)");return}
@@ -679,7 +679,7 @@ function refRender(){var r=S.ref||{n:0,e:0,pct:5};$("rl").textContent=refLink();
 function refShare(){var u="https://t.me/share/url?url="+encodeURIComponent(refLink())+"&text="+encodeURIComponent(REFTXT);try{if(tg&&tg.openTelegramLink)tg.openTelegramLink(u);else window.open(u,"_blank")}catch(e){}}
 $("rfsh").onclick=refShare;$("rfop").onclick=refShare;
 $("cp").onclick=function(){var b=this;try{navigator.clipboard.writeText(refLink())}catch(e){}b.style.color="var(--ac)";setTimeout(function(){b.style.color=""},1200)};
-$("rfcl").onclick=function(){var b=this;if(b.disabled||!API_URL)return;b.disabled=true;api("/api/ref/claim").then(function(r){if(r&&r.ok){applyState(r.state);render()}else{refRender()}}).catch(function(){refRender()})};
+$("rfcl").onclick=function(){var b=this;if(b.disabled||!API_URL)return;b.disabled=true;api("/api/ref/claim",{}).then(function(r){if(r&&r.ok){applyState(r.state);render()}else{refRender()}}).catch(function(){refRender()})};
 wlRender();$("wl").onclick=function(){if(tc){if(tc.connected){tc.disconnect()}else tc.openModal()}else{var m="Кошелёк подключается через TON Connect: нужен SDK и манифест на твоём хостинге.";if(tg&&tg.showAlert)tg.showAlert(m);else alert(m)}};
 // авто-цены с твоего сервера (см. server.py): {"Genie Lamp": 37.3, ...}
 function loadPrices(){if(!PRICE_URL)return;fetch(PRICE_URL).then(function(r){return r.json()}).then(function(d){
