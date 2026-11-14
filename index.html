@@ -257,7 +257,7 @@ requestAnimationFrame(frame)})();
 <div class="ln" id="dpa"></div><div class="ln" id="dpc"></div>
 <button id="dpx" style="width:100%;margin-top:12px;padding:14px;border-radius:18px;background:var(--cd);font-weight:600">Закрыть</button></div></div>
 <style id="cscss">
-#kz,#csr{position:fixed;inset:0;z-index:13;background:#0c0a0f;display:none;flex-direction:column;overflow:auto;padding:calc(14px + var(--ti,0px)) 16px 34px;-webkit-overflow-scrolling:touch}#kz.open,#csr.open{display:flex}#csr{z-index:14}
+#kz,#csr{position:fixed;inset:0;z-index:13;background:#0c0a0f;display:none;flex-direction:column;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;padding:calc(14px + var(--ti,0px)) 16px 34px;-webkit-overflow-scrolling:touch}#kz.open,#csr.open{display:flex}#csr{z-index:14}
 .csbk{width:46px;height:46px;border-radius:50%;background:var(--cd2);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;flex:none}
 .cstop{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .csh{font-size:34px;font-weight:900;letter-spacing:-.5px;margin:14px 4px 4px;font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif}.css0{color:var(--mut);font-size:16px;line-height:1.35;margin:0 4px 6px}
@@ -275,7 +275,7 @@ requestAnimationFrame(frame)})();
 .csbx h3{font-size:26px;font-weight:900;margin:2px 6px 14px;font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif}.csbx .sub{color:var(--mut);font-size:15px;margin:-8px 6px 14px}
 .csst{display:flex;align-items:center;gap:12px;background:#1d171f;border-radius:30px;padding:10px 10px 10px 14px;margin-bottom:10px;font-size:18px;font-weight:600}.csst i{font-style:normal;flex:none;width:34px;height:34px;border-radius:50%;background:var(--ac);color:#1a0a12;font-weight:900;display:flex;align-items:center;justify-content:center}.csst span{flex:1;min-width:0}
 .csst button{flex:none;height:46px;padding:0 20px;border-radius:23px;background:linear-gradient(180deg,#ff8cc4,#ff4fa0);color:#1a0a12;font-weight:800;font-size:15px}.csst.ok button{background:var(--ok);color:#06210f}
-.csrays{position:absolute;left:50%;top:260px;width:1500px;height:1500px;margin:-750px 0 0 -750px;background:repeating-conic-gradient(rgba(255,79,160,.17) 0 7deg,transparent 7deg 20deg);-webkit-mask:radial-gradient(circle,#000 6%,transparent 52%);mask:radial-gradient(circle,#000 6%,transparent 52%);animation:csrot 24s linear infinite;pointer-events:none}@keyframes csrot{to{transform:rotate(360deg)}}
+#csr>*{flex:none}.csrays{position:fixed;inset:0;overflow:hidden;pointer-events:none}.csrays:before{content:"";position:absolute;left:50%;top:260px;width:1500px;height:1500px;margin:-750px 0 0 -750px;background:repeating-conic-gradient(rgba(255,79,160,.17) 0 7deg,transparent 7deg 20deg);-webkit-mask:radial-gradient(circle,#000 6%,transparent 52%);mask:radial-gradient(circle,#000 6%,transparent 52%);animation:csrot 24s linear infinite}@keyframes csrot{to{transform:rotate(360deg)}}
 .csrc{position:relative;width:230px;height:230px;margin:6px auto 0;border-radius:44px;background:#15111a center/cover no-repeat;box-shadow:0 0 80px rgba(255,79,160,.45);border:1px solid rgba(255,79,160,.35)}
 .cspp{display:inline-flex;align-items:center;gap:8px;background:#1d171f;border-radius:30px;padding:9px 18px 9px 10px;font-weight:900;font-size:22px;color:var(--ac)}
 .csrn{text-align:center;font-size:28px;font-weight:900;margin-top:16px;font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif}.csrs{text-align:center;color:var(--mut);font-size:17px;margin-top:4px}
@@ -747,7 +747,7 @@ function csHome(){var C=csC(),h="";var it=C.items||[];$("csn").textContent=it.le
     $("csst").innerHTML=row;var tot=it.length*206,off=(W/2-96)-(Math.floor(Date.now()/1000)%it.length)*206-206*3;$("csst").style.transform="translateX("+off+"px)"}
   it.forEach(function(x){h+=card(x.t>=0?x.t:0,"Коллекция"+(x.c?"":" · нет в наличии"),false,'tabindex="-1"'+(x.c?'':' style="opacity:.4"'),csIm(x))});$("csg").innerHTML=h;
   var b=$("csgo"),m=C.my;b.disabled=false;
-  if(m&&m.st==="done")b.textContent="Подарок в инвентаре";else if(m)b.textContent="Забрать подарок ("+C.fr+"/"+C.need+")";else if(!it.some(function(x){return x.c})){b.textContent="Призы скоро пополнятся";b.disabled=true}else b.textContent="Крутить бесплатно"}
+  if(m&&m.st==="done")b.textContent="Подарок в инвентаре";else if(m&&m.st==="lost")b.textContent="Крутить снова";else if(m)b.textContent="Забрать подарок ("+C.fr+"/"+C.need+")";else if(!it.some(function(x){return x.c})){b.textContent="Призы скоро пополнятся";b.disabled=true}else b.textContent="Крутить бесплатно"}
 function csOpen(){if(!API_URL){return}csOn=true;$("kz").classList.add("open");document.body.style.overflow="hidden";$("cserr").textContent="";csHome();sync().then(function(){if(csOn)csHome()});clearInterval(csTimer);csTimer=setInterval(function(){if(csOn&&!csBusy&&!$("csr").classList.contains("open"))sync().then(function(){if(csOn&&!csBusy)csHome()})},8000)}
 function csClose(){csOn=false;clearInterval(csTimer);$("kz").classList.remove("open");$("csr").classList.remove("open");$("kzs").classList.remove("open");$("csi").classList.remove("open");document.body.style.overflow=""}
 function csRefresh(){if(!csOn||csBusy)return;if($("csr").classList.contains("open"))csResult();else if($("csi").classList.contains("open"))csInvite();else csHome()}
@@ -758,9 +758,11 @@ function csAnimate(win,cb){var C=csC(),it=C.items;if(!it.length){cb();return}csB
   setTimeout(function(){try{tg&&tg.HapticFeedback&&tg.HapticFeedback.notificationOccurred("success")}catch(e){}csBusy=false;cb()},4800)}
 function csResult(){var C=csC(),m=C.my;if(!m){$("csr").classList.remove("open");return}
   var t=m.t,pr=(T[t]&&T[t].v)||0;$("csrp").textContent=f(pr,pr<10?2:1);$("csrc").style.backgroundImage="url("+csIm(m)+")";$("csrn").textContent=csNm(m)+(m.no?" #"+m.no:"");
-  var h="";if(m.st==="done")h='<div class="csin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><div><b>Подарок в вашем инвентаре</b><small>Друзья засчитаны. Откройте «Мои подарки» и заберите NFT в Telegram.</small></div></div><button class="csgo" id="csrinv">В инвентарь</button><button class="csgo2" id="csrback">К кейсу</button>';
-  else{var left=Math.max(0,C.need-C.fr),np=csNote.indexOf("nopremium")>=0;
-    h='<div class="csin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.5-3.2 2.8-5 5.5-5s5 1.8 5.5 5"/><path d="M17 8v6M14 11h6"/></svg><div><b>Чтобы получить подарок</b><small>Нужны '+C.need+' приглашённых друга с Telegram Premium. Каждый должен открыть этот NFT Кейс. Сейчас засчитано: '+C.fr+' из '+C.need+'.<br>Подарок закреплён за вами до '+csDate(m.exp)+'.'+(np?'<br><br>У вас нет Telegram Premium, поэтому вы не засчитались пригласившему, но свой приз можно получить, позвав друзей.':'')+'</small></div></div><button class="csgo" id="csrinv2">Позвать друзей</button><button class="csgo2" id="csrback">К кейсу</button>'}
+  var h="";
+  if(m.st==="done")h='<div class="csin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><div><b>Подарок в вашем инвентаре</b><small>Вы первым выполнили все условия. Откройте «Мои подарки» и выведите NFT в Telegram.</small></div></div><button class="csgo" id="csrinv">В инвентарь</button><button class="csgo2" id="csrback">К кейсу</button>';
+  else if(m.st==="lost")h='<div class="csin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg><div><b>Этот NFT уже забрал другой игрок</b><small>Условия вы выполнили, но подарок достался тому, кто успел раньше. Откройте кейс снова — ваши друзья уже засчитаны.</small></div></div><button class="csgo" id="csragain">Крутить снова</button><button class="csgo2" id="csrback">К кейсу</button>';
+  else{var np=csNote.indexOf("nopremium")>=0;
+    h='<div class="csin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.5-3.2 2.8-5 5.5-5s5 1.8 5.5 5"/><path d="M17 8v6M14 11h6"/></svg><div><b>Чтобы получить подарок</b><small>Нужны '+C.need+' приглашённых друга с Telegram Premium. Каждый должен открыть этот NFT Кейс. Сейчас засчитано: '+C.fr+' из '+C.need+'.<br>Подарок получит тот, кто первым выполнит все условия. Заявка действует до '+csDate(m.exp)+'.'+(np?'<br><br>У вас нет Telegram Premium, поэтому вы не засчитались пригласившему, но свой приз можно получить, позвав друзей.':'')+'</small></div></div><button class="csgo" id="csrinv2">Позвать друзей</button><button class="csgo2" id="csrback">К кейсу</button>'}
   $("csrb").innerHTML=h;$("csr").classList.add("open")}
 function csDate(ts){var d=new Date(ts*1000),p=function(n){return(n<10?"0":"")+n};return p(d.getDate())+"."+p(d.getMonth()+1)+" "+p(d.getHours())+":"+p(d.getMinutes())}
 function csInvite(){var C=csC(),m=C.my;if(!m)return;var seg="";for(var i=0;i<C.need;i++)seg+='<i class="'+(i<C.fr?"on":"")+'"></i>';$("csseg").innerHTML=seg;$("csic").textContent=C.fr+" / "+C.need;
@@ -771,15 +773,16 @@ function csSpin(){var b=$("cschk");b.disabled=true;$("csserr").textContent="";ap
   csNote=r.note||[];applyState(r.state);render();grid();$("kzs").classList.remove("open");csAnimate(r.state.case.my,function(){csHome();csResult()})}).catch(function(){b.disabled=false;$("csserr").textContent="Нет связи с сервером"})}
 $("n0").onclick=function(){if(!API_URL){say("Скоро");return}csOpen()};
 $("kzx").onclick=csClose;
-$("csgo").onclick=function(){var m=csC().my;if(csBusy)return;if(m){csResult();return}$("csserr").textContent="";$("kzs").classList.add("open")};
+$("csgo").onclick=function(){var m=csC().my;if(csBusy)return;if(m&&m.st!=="lost"){csResult();return}$("csserr").textContent="";$("kzs").classList.add("open")};
 $("cssx").onclick=function(){$("kzs").classList.remove("open")};
 $("csdo").onclick=function(){csVisited=true;csOpenUrl(CSL);$("csdo").textContent="Открыто"};
 $("cschk").onclick=csSpin;
 $("csrx").onclick=function(){$("csr").classList.remove("open")};
 $("csix").onclick=function(){$("csi").classList.remove("open")};
-$("csr").addEventListener("click",function(e){var id=e.target.id;if(id==="csrback")$("csr").classList.remove("open");else if(id==="csrinv2")csInvite();else if(id==="csrinv"){csClose();tabM=1;tabU=1;view(0);grid();var u=$("u1");if(u&&u.scrollIntoView)u.scrollIntoView({behavior:"smooth",block:"start"})}});
+$("csr").addEventListener("click",function(e){var id=e.target.id;if(id==="csrback")$("csr").classList.remove("open");else if(id==="csragain"){$("csr").classList.remove("open");$("csserr").textContent="";$("kzs").classList.add("open")}else if(id==="csrinv2")csInvite();else if(id==="csrinv"){csClose();tabM=1;tabU=1;view(0);grid();var u=$("u1");if(u&&u.scrollIntoView)u.scrollIntoView({behavior:"smooth",block:"start"})}});
 $("cslo").onclick=function(){csShare()};$("cssend").onclick=function(){csShare()};
 $("cslc").onclick=function(){var b=this,l=csC().link;try{navigator.clipboard.writeText(l)}catch(e){}b.style.color="var(--ac)";setTimeout(function(){b.style.color=""},1200)};
 function csShare(){var l=csC().link;csOpenUrl("https://t.me/share/url?url="+encodeURIComponent(l)+"&text="+encodeURIComponent("Открой бесплатный NFT-кейс в GiftUp Now и получи подарок!"))}
+["kz","csr"].forEach(function(i){var e=$(i);e.addEventListener("touchmove",function(ev){if(e.scrollHeight<=e.clientHeight+1)ev.preventDefault()},{passive:false})});
 function csAuto(){try{var sp=(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.start_param)||"";if(sp.indexOf("case_")===0&&!sessionStorage.getItem("csa")){sessionStorage.setItem("csa","1");csOpen()}}catch(e){}}
 </script></body></html>

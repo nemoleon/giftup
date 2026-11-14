@@ -118,7 +118,7 @@ def init_db():
     create table if not exists meta(k text primary key, v text);
     create table if not exists custom(id integer primary key autoincrement, key text, model text, name text, price real);
     create table if not exists topup(id integer primary key autoincrement, user integer, ts integer, amount real, kind text, ref text);
-    create table if not exists case_open(user integer primary key, gift integer, ts integer, status text default 'pending');
+    create table if not exists case_open(user integer primary key, gift integer, ts integer, status text default 'pending', gid integer);
     create table if not exists case_bind(friend integer primary key, inviter integer, ts integer);
     create table if not exists case_ref(friend integer primary key, inviter integer, ts integer);""")
     try: c.execute("alter table wd add column fee real default 0")   # для старых баз
@@ -421,11 +421,9 @@ def case_subscribed(uid):
 def case_names_of(t): return (CAT[t].get("key") or CAT[t].get("name") or "").strip() if 0 <= t < len(CAT) else ""
 
 def case_expire(c):
-    """Приз, который не дождался друзей за CASE_TTL_H часов, возвращается на склад; человек может открыть кейс заново."""
+    """Заявка, которая не дождалась друзей за CASE_TTL_H часов, закрывается; человек может открыть кейс заново."""
     old = int(time.time()) - CASE_TTL_H * 3600
-    for r in c.execute("select user, gift from case_open where status='pending' and ts<?", (old,)).fetchall():
-        c.execute("update gifts set status='house', owner=NULL where id=? and status='case'", (r["gift"],))
-        c.execute("delete from case_open where user=?", (r["user"],))
+    c.execute("delete from case_open where status in ('pending','lost') and ts<?", (old,))
 
 def case_bind(c, uid, sp):
     """Запоминает, по чьей кейс-ссылке человек пришёл (только если он ещё не открывал кейс и не привязан к другому)."""
@@ -436,17 +434,22 @@ def case_bind(c, uid, sp):
     c.execute("insert or ignore into case_bind(friend,inviter,ts) values(?,?,?)", (uid, inv, int(time.time())))
 
 def case_finish(c, uid):
-    """Если друзей достаточно — приз переходит в инвентарь. Возвращает True, если только что выдан."""
+    """Друзей достаточно — кто успел первым, тот и забирает: берём со склада свободный подарок выпавшего типа.
+    Возвращает "done" (выдан в инвентарь), "lost" (такого подарка уже не осталось: забрал другой игрок) или False."""
     r = c.execute("select gift from case_open where user=? and status='pending'", (uid,)).fetchone()
     if not r: return False
     n = c.execute("select count(*) from case_ref where inviter=?", (uid,)).fetchone()[0]
     if n < CASE_NEED: return False
-    c.execute("update gifts set status='held', owner=? where id=? and status='case'", (uid, r["gift"]))
-    c.execute("update case_open set status='done' where user=?", (uid,))
-    return True
+    g = c.execute("select id from gifts where status='house' and type=? order by id limit 1", (r["gift"],)).fetchone()
+    if not g:
+        c.execute("update case_open set status='lost' where user=?", (uid,))
+        return "lost"
+    if c.execute("update gifts set status='held', owner=? where id=? and status='house'", (uid, g["id"])).rowcount != 1: return False
+    c.execute("update case_open set status='done', gid=? where user=?", (g["id"], uid))
+    return "done"
 
 def case_credit(c, friend, premium):
-    """Друг открыл кейс: засчитываем пригласившему, если у друга Telegram Premium. Возвращает (inviter, n, выдан_ли_приз) или None."""
+    """Друг открыл кейс: засчитываем пригласившему, если у друга Telegram Premium. Возвращает (inviter, n, результат case_finish) или None."""
     b = c.execute("select inviter from case_bind where friend=?", (friend,)).fetchone()
     if not b or not premium: return None
     inv = b["inviter"]
@@ -455,22 +458,27 @@ def case_credit(c, friend, premium):
     n = c.execute("select count(*) from case_ref where inviter=?", (inv,)).fetchone()[0]
     return (inv, n, case_finish(c, inv))
 
+def case_img(c, t):
+    r = c.execute("select img from gifts where type=? and img is not null and img!='' order by id desc limit 1", (t,)).fetchone()
+    return r["img"] if r else ""
+
 def case_info(c, uid):
     case_expire(c)
-    groups = {}
-    for r in c.execute("select id,type,number,img from gifts where status='house' and type>=0 order by id"):
-        nm = case_names_of(r["type"])
-        if nm in CASE_NAMES: groups.setdefault(nm, []).append(r)
+    cnt = {}
+    for r in c.execute("select type, count(*) n from gifts where status='house' and type>=0 group by type"): cnt[r["type"]] = r["n"]
     items = []
     for nm in CASE_NAMES:
-        g = groups.get(nm)
-        if g: items.append({"n": nm, "t": g[0]["type"], "v": CAT[g[0]["type"]].get("price") or 0, "c": len(g), "im": g[0]["img"] or ""})
-        else:
-            t = next((i for i, x in enumerate(CAT) if (x.get("key") or x.get("name") or "").strip() == nm), -1)
-            items.append({"n": nm, "t": t, "v": (CAT[t].get("price") or 0) if t >= 0 else 0, "c": 0, "im": ""})
+        t = next((i for i, x in enumerate(CAT) if (x.get("key") or x.get("name") or "").strip() == nm), -1)
+        items.append({"n": nm, "t": t, "v": (CAT[t].get("price") or 0) if t >= 0 else 0, "c": cnt.get(t, 0) if t >= 0 else 0, "im": case_img(c, t) if t >= 0 else ""})
     my = None
-    r = c.execute("select co.status, co.ts, g.type, g.number, g.img from case_open co left join gifts g on g.id=co.gift where co.user=?", (uid,)).fetchone()
-    if r: my = {"st": r["status"], "t": r["type"], "no": r["number"], "im": r["img"] or "", "n": case_names_of(r["type"]), "exp": r["ts"] + CASE_TTL_H * 3600}
+    r = c.execute("select status, ts, gift, gid from case_open where user=?", (uid,)).fetchone()
+    if r:
+        no = 0; im = ""
+        if r["gid"]:
+            g = c.execute("select number, img from gifts where id=?", (r["gid"],)).fetchone()
+            if g: no, im = g["number"] or 0, g["img"] or ""
+        if not im: im = case_img(c, r["gift"])
+        my = {"st": r["status"], "t": r["gift"], "no": no, "im": im, "n": case_names_of(r["gift"]), "exp": r["ts"] + CASE_TTL_H * 3600}
     return {"items": items, "need": CASE_NEED, "ch": CASE_CHANNEL.lstrip("@"), "my": my, "fr": c.execute("select count(*) from case_ref where inviter=?", (uid,)).fetchone()[0], "link": case_link(uid)}
 
 def state(c, uid):
@@ -939,7 +947,7 @@ def api_withdraw(body: dict, x_init_data: str = Header("")):
 
 @app.post("/api/case/spin")
 def api_case_spin(x_init_data: str = Header("")):
-    """Бесплатный кейс: проверяем подписку, разыгрываем один из NFT из CASE_NAMES (случайно, поровну), резервируем его за человеком."""
+    """Бесплатный кейс: проверяем подписку, разыгрываем один из NFT из CASE_NAMES (случайно, поровну). Подарок не бронируется."""
     usr = check_init(x_init_data); uid = usr["id"]
     if not hit(f"cspin:{uid}", 6, 60): return {"ok": False, "error": "Слишком часто, подожди немного"}
     sub = case_subscribed(uid)
@@ -952,17 +960,14 @@ def api_case_spin(x_init_data: str = Header("")):
         c.execute("begin immediate")
         get_user(c, uid, usr.get("first_name", ""), "")
         case_bind(c, uid, sp); case_expire(c)
+        c.execute("delete from case_open where user=? and status='lost'", (uid,))
         if c.execute("select 1 from case_open where user=?", (uid,)).fetchone(): return fail(c, "Вы уже открывали этот кейс")
         if c.execute("select count(*) from case_open where ts>?", (int(time.time()) - 86400,)).fetchone()[0] >= CASE_DAILY:
             return fail(c, "На сегодня кейсы закончились, загляните завтра")
-        groups = {}
-        for r in c.execute("select id,type from gifts where status='house' and type>=0"):
-            nm = case_names_of(r["type"])
-            if nm in CASE_NAMES: groups.setdefault(nm, []).append(r["id"])
-        if not groups: return fail(c, "Кейс временно пуст — призы скоро пополнятся")
-        nm = secrets.choice(sorted(groups)); gid = secrets.choice(groups[nm])
-        if c.execute("update gifts set status='case', owner=? where id=? and status='house'", (uid, gid)).rowcount != 1: return fail(c, "Не удалось открыть кейс, попробуйте ещё раз")
-        c.execute("insert into case_open(user,gift,ts,status) values(?,?,?,'pending')", (uid, gid, int(time.time())))
+        pool = sorted({r["type"] for r in c.execute("select distinct type from gifts where status='house' and type>=0") if case_names_of(r["type"]) in CASE_NAMES})
+        if not pool: return fail(c, "Кейс временно пуст — призы скоро пополнятся")
+        t = secrets.choice(pool)  # поровну между типами; подарок не бронируется: кто первым выполнит условия, тот и заберёт
+        c.execute("insert into case_open(user,gift,ts,status) values(?,?,?,'pending')", (uid, t, int(time.time())))
         cr = case_credit(c, uid, premium)
         mine = c.execute("select 1 from case_bind where friend=?", (uid,)).fetchone() is not None
         if mine and not premium: note.append("nopremium")
@@ -974,7 +979,8 @@ def api_case_spin(x_init_data: str = Header("")):
     finally: c.close()
     if cr:
         inv, n, done = cr; who = usr.get("first_name") or str(uid)
-        if done: threading.Thread(target=notify, args=(inv, f"🎁 Друг {who} открыл кейс — набрано {n}/{CASE_NEED}! Ваш NFT уже в инвентаре GiftUp, можно забирать."), daemon=True).start()
+        if done == "done": threading.Thread(target=notify, args=(inv, f"🎁 Друг {who} открыл кейс — набрано {n}/{CASE_NEED}! Ваш NFT уже в инвентаре GiftUp, можно забирать."), daemon=True).start()
+        elif done == "lost": threading.Thread(target=notify, args=(inv, f"Друг {who} открыл кейс — набрано {n}/{CASE_NEED}, но такой NFT уже забрал другой игрок. Откройте кейс снова в GiftUp."), daemon=True).start()
         else: threading.Thread(target=notify, args=(inv, f"✅ Друг {who} открыл кейс: засчитано {n}/{CASE_NEED}."), daemon=True).start()
     return {"ok": True, "state": st, "note": note}
 
@@ -988,7 +994,7 @@ def api_case_claim(x_init_data: str = Header("")):
         c.execute("begin immediate")
         case_expire(c); got = case_finish(c, uid)
         st = state(c, uid); c.execute("commit")
-        return {"ok": True, "done": got, "state": st}
+        return {"ok": True, "done": got == "done", "lost": got == "lost", "state": st}
     except Exception:
         try: c.execute("rollback")
         except Exception: pass
