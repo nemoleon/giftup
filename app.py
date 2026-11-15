@@ -1039,6 +1039,33 @@ def api_case_spin(x_init_data: str = Header("")):
         else: threading.Thread(target=notify, args=(inv, f"✅ Друг {who} открыл кейс: засчитано {n}/{CASE_NEED}."), daemon=True).start()
     return {"ok": True, "state": st, "note": note}
 
+@app.post("/api/case/share")
+def api_case_share(x_init_data: str = Header("")):
+    """Готовое сообщение для «Поделиться» из мини-приложения: карточка реально выпавшего NFT + кнопка входа в кейс."""
+    usr = check_init(x_init_data); uid = usr["id"]
+    if not hit(f"cshare:{uid}", 10, 60): return {"ok": False, "error": "Слишком часто"}
+    c = db()
+    try:
+        r = c.execute("select status, gift, gid from case_open where user=?", (uid,)).fetchone()
+        if not r or r["status"] == "lost" or not r["gid"]: return {"ok": False, "error": "Нет выпавшего NFT"}
+        g = c.execute("select number from gifts where id=?", (r["gid"],)).fetchone()
+        t = r["gift"]
+        if not g or not g["number"] or not (0 <= t < len(CAT)): return {"ok": False, "error": "Нет данных о подарке"}
+        base = CAT[t].get("key") or CAT[t].get("name") or ""
+        slug = nft_slug(base, g["number"]); link = case_link(uid)
+    finally: c.close()
+    nm = f"{base} #{g['number']}"
+    txt = (f"🎁 Мне выпал NFT {nm} в бесплатном кейсе GiftUp Now.\n\n"
+           f"Чтобы его забрать, нужно позвать {CASE_NEED} друзей с Telegram Premium: заходи и открывай кейс, так ты мне поможешь — и сам сможешь выиграть NFT.")
+    res = {"type": "article", "id": f"cs{uid}{int(time.time())}", "title": f"Выпал {nm}",
+           "input_message_content": {"message_text": txt, "link_preview_options": {"url": f"https://t.me/nft/{slug}", "show_above_text": True, "prefer_large_media": True}},
+           "reply_markup": {"inline_keyboard": [[{"text": "Крутить бесплатно", "url": link}]]}}
+    try:
+        pm = tg("savePreparedInlineMessage", user_id=uid, result=res, allow_user_chats=True, allow_bot_chats=False, allow_group_chats=True, allow_channel_chats=True)
+        return {"ok": True, "id": pm["id"]}
+    except Exception as e:
+        print("case share:", e, flush=True); return {"ok": False, "error": str(e)}
+
 @app.post("/api/case/claim")
 def api_case_claim(x_init_data: str = Header("")):
     """Проверка: если друзей уже достаточно — приз в инвентарь (обычно это происходит само)."""

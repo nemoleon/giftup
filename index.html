@@ -844,7 +844,8 @@ $("csfr").onclick=function(){var C=csC(),m=C.my;if(!m||m.st!=="pending")return;C
 $("cspan").addEventListener("click",function(e){var b=e.target.closest?e.target.closest("button"):null;if(!b)return;if(b.id==="cspinv"||b.id==="cspo")csShare();else if(b.id==="cspc"){try{navigator.clipboard.writeText(csC().link)}catch(x){}b.style.color="var(--ac)";setTimeout(function(){b.style.color=""},1200)}});
 $("cslo").onclick=function(){csShare()};$("cssend").onclick=function(){csShare()};
 $("cslc").onclick=function(){var b=this,l=csC().link;try{navigator.clipboard.writeText(l)}catch(e){}b.style.color="var(--ac)";setTimeout(function(){b.style.color=""},1200)};
-function csShare(){var l=csC().link;csOpenUrl("https://t.me/share/url?url="+encodeURIComponent(l)+"&text="+encodeURIComponent("Открой бесплатный NFT-кейс в GiftUp Now и получи подарок!"))}
+function csShare(){var m=csMy();if(API_URL&&m&&m.no&&m.st!=="lost"&&tg&&tg.shareMessage){api("/api/case/share",{}).then(function(r){if(r&&r.ok&&r.id){try{tg.shareMessage(r.id);return}catch(e){}}csShare0()}).catch(csShare0);return}csShare0()}
+function csShare0(){var l=csC().link;csOpenUrl("https://t.me/share/url?url="+encodeURIComponent(l)+"&text="+encodeURIComponent("Открой бесплатный NFT-кейс в GiftUp Now и получи подарок!"))}
 ["kz","csr"].forEach(function(i){var e=$(i);e.addEventListener("touchmove",function(ev){if(e.scrollHeight<=e.clientHeight+1)ev.preventDefault()},{passive:false})});
 function csAuto(){try{var sp=(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.start_param)||"";if(sp.indexOf("case_")===0&&!sessionStorage.getItem("csa")){sessionStorage.setItem("csa","1");csOpen()}}catch(e){}}
 </script></body></html>
