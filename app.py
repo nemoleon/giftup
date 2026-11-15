@@ -30,6 +30,9 @@ BUSINESS_OWNER_ID = os.environ.get("BUSINESS_OWNER_ID", "").strip()   # id ак�
 WITHDRAW_REGULAR = os.environ.get("WITHDRAW_REGULAR") == "1"   # =1 — разрешить вывод обычных подарков за звёзды (за счёт звёзд бота)
 WITHDRAW_FEE = float(os.environ.get("WITHDRAW_FEE", "0.4"))   # цена вывода подарка, GRAM
 ADMIN_TG = [int(x) for x in os.environ.get("ADMIN_TG", "6779144231,8427357071").split(",") if x.strip()]   # кому приходят заявки на ручной вывод
+# Склад (бизнес-подключение) могут задать ТОЛЬКО эти аккаунты: BUSINESS_OWNER_ID, если задан, иначе админы ADMIN_TG.
+# Подключение бота из любого другого аккаунта игнорируется и склад не меняет.
+BIZ_ALLOWED = {int(BUSINESS_OWNER_ID)} if BUSINESS_OWNER_ID.isdigit() else set(ADMIN_TG)
 MANUAL_WITHDRAW = os.environ.get("MANUAL_WITHDRAW") == "1"      # =1 — все выводы NFT только вручную (без попытки передать через бизнес-аккаунт)
 REF_PCT = float(os.environ.get("REF_PCT", "0.05"))                # доля от пополнений рефералов, копится у пригласившего
 APP_LINK = os.environ.get("APP_LINK", "").rstrip("/")            # необязательно: https://t.me/бот/короткое_имя (если у мини-приложения есть своё имя в BotFather)
@@ -794,32 +797,6 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         raise
     finally: c.close()
 
-@app.post("/api/free")
-def api_free(x_init_data: str = Header("")):
-    return {"ok": False, "error": "Недоступно"}   # бесплатный кейс отключён
-    usr = check_init(x_init_data); uid = usr["id"]
-    if not hit(f"free:{uid}", 5, 60): return {"ok": False, "error": "Слишком часто, подожди немного"}
-    c = db()
-    try:
-        c.execute("begin immediate")
-        u = get_user(c, uid, usr.get("first_name", ""))
-        today = datetime.date.today().isoformat()
-        if u["free_day"] == today: return fail(c, "Бесплатный кейс уже открыт сегодня")
-        cheap = [i for i, g in enumerate(CAT) if g["price"] < 10 and not g.get("nw")]
-        if not cheap: return fail(c, "Кейс пуст")
-        q = ",".join("?" * len(cheap))
-        t = c.execute(f"select * from gifts where status='house' and type in ({q}) order by random() limit 1", cheap).fetchone()
-        if not t: return fail(c, "Кейс пуст")
-        c.execute("update gifts set owner=?, status='held' where id=?", (uid, t["id"]))
-        c.execute("update users set free_day=? where id=?", (today, uid))
-        st = state(c, uid); c.execute("commit")
-        return {"ok": True, "gift": {"id": t["id"], "t": t["type"], "no": t["number"]}, "state": st}
-    except Exception:
-        try: c.execute("rollback")
-        except Exception: pass
-        raise
-    finally: c.close()
-
 NW_EMOJI = {23: "💝", 24: "🧸", 25: "🎁", 26: "🌹", 27: "🎂", 28: "💐", 29: "🚀", 30: "🍾", 31: "🏆", 32: "💍", 33: "💎"}
 _gl = {"t": 0, "d": []}
 def tg_gift_id(t):
@@ -1080,9 +1057,9 @@ def on_message(m):
     fr = m.get("from") or {}
     who = f"{fr.get('id')} @{fr.get('username', '-')} {fr.get('first_name', '')}".strip()
     cid = m.get("business_connection_id")
-    if cid and BUSINESS_OWNER_ID and str(fr.get("id")) == BUSINESS_OWNER_ID and cid != meta_get("bc"):
-        # сообщение отправил сам аккаунт-склад → это его подключение: запоминаем и забираем подарки
-        meta_set("bc", cid); meta_set("bc_owner", BUSINESS_OWNER_ID)
+    if cid and fr.get("id") in BIZ_ALLOWED and cid != meta_get("bc"):
+        # сообщение отправил сам разрешённый аккаунт → это его подключение: запоминаем и забираем подарки
+        meta_set("bc", cid); meta_set("bc_owner", str(fr.get("id")))
         print(f"[{stamp()}] подключение склада определено по сообщению: {cid[:8]}…", flush=True)
         threading.Thread(target=lambda: import_stock(), daemon=True).start()
     ug = m.get("unique_gift")
@@ -1294,6 +1271,10 @@ def api_check(x_admin_key: str = Header("")):
 
 def poll_loop():
     offset = 0
+    ow = meta_get("bc_owner")
+    if ow and ow.isdigit() and int(ow) not in BIZ_ALLOWED:   # в базе осталось подключение постороннего аккаунта — сбрасываем
+        meta_set("bc", ""); meta_set("bc_owner", "")
+        print(f"[{stamp()}] ⚠ сохранённое подключение {ow} не из разрешённых {sorted(BIZ_ALLOWED)} — сброшено, подключите склад заново", flush=True)
     while True:
         try:
             for u in tg("getUpdates", offset=offset, timeout=50, allowed_updates=["business_connection", "business_message", "pre_checkout_query", "message", "callback_query"]):
@@ -1301,8 +1282,12 @@ def poll_loop():
                 bc = u.get("business_connection")
                 if bc:
                     print(f"[{stamp()}] бизнес-подключение: user={bc['user']['id']} включено={bc.get('is_enabled')} права={bc.get('rights')}", flush=True)
-                if bc and BUSINESS_OWNER_ID and str(bc["user"]["id"]) != BUSINESS_OWNER_ID:
-                    print(f"[{stamp()}] ⚠ подключение от чужого аккаунта {bc['user']['id']} проигнорировано (склад — {BUSINESS_OWNER_ID})", flush=True); bc = None
+                if bc and bc["user"]["id"] not in BIZ_ALLOWED:
+                    print(f"[{stamp()}] ⚠ подключение от чужого аккаунта {bc['user']['id']} проигнорировано (разрешены {sorted(BIZ_ALLOWED)})", flush=True)
+                    for a_ in ADMIN_TG:
+                        try: notify(a_, f"⚠ Бота подключил к Business чужой аккаунт {bc['user']['id']} — проигнорировано, склад не изменён.")
+                        except Exception: pass
+                    bc = None
                 if bc and bc.get("is_enabled"):
                     meta_set("bc", bc["id"]); meta_set("bc_owner", str(bc["user"]["id"]))
                     try: import_stock()
