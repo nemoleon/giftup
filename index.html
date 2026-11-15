@@ -628,9 +628,9 @@ $("go").onclick=function(){
   var roll=Math.random()*100;spin(roll,Math.abs(roll-50)<ch/2,w,ex,null,null);
 };
 function spin(roll,win,w,ex,gift,st){
-  var dur=fast?2500:6500;
-  rot=Math.ceil(rot/360)*360+(fast?1440:2880)+(roll-50)*3.6;
-  $("ptr").style.transition="transform "+dur+"ms cubic-bezier(.08,.9,.18,1)";$("ptr").style.transform="rotate("+rot+"deg)";
+  var dur=fast?2000:4500;
+  rot=Math.ceil(rot/360)*360+(fast?1080:2160)+(roll-50)*3.6;
+  $("ptr").style.transition="transform "+dur+"ms cubic-bezier(.05,.92,.15,1)";$("ptr").style.transform="rotate("+rot+"deg)";
   say("Крутим…");
   setTimeout(function(){
     var g=gift;
