@@ -124,7 +124,8 @@ def init_db():
     create table if not exists topup(id integer primary key autoincrement, user integer, ts integer, amount real, kind text, ref text);
     create table if not exists case_open(user integer primary key, gift integer, ts integer, status text default 'pending', gid integer);
     create table if not exists case_bind(friend integer primary key, inviter integer, ts integer);
-    create table if not exists case_ref(friend integer primary key, inviter integer, ts integer);""")
+    create table if not exists case_ref(friend integer primary key, inviter integer, ts integer);
+    create table if not exists case_pend(friend integer primary key, inviter integer, ts integer, status text default 'wait', who text);""")
     if "gid" not in [r[1] for r in c.execute("pragma table_info(case_open)")]:   # старый формат кейса (с бронью подарка) → новый
         c.execute("update gifts set status='house', owner=NULL where status='case'")
         c.execute("drop table case_open")
@@ -491,15 +492,44 @@ def case_finish(c, uid):
     c.execute("update case_open set status='done', gid=? where user=?", (g["id"], uid))
     return "done"
 
-def case_credit(c, friend, premium):
-    """Друг открыл кейс: засчитываем пригласившему, если у друга Telegram Premium и есть @username. Возвращает (inviter, n, результат case_finish) или None."""
+def case_credit(c, friend, premium, who=""):
+    """Друг выполнил все условия: НЕ засчитываем сразу, а ставим на проверку владельцу (кнопки «Подтвердить / Отклонить»).
+    Возвращает inviter, если заявка создана, иначе None."""
     b = c.execute("select inviter from case_bind where friend=?", (friend,)).fetchone()
     if not b or not premium: return None
     inv = b["inviter"]
+    if inv == friend: return None
     if c.execute("select 1 from case_ref where friend=?", (friend,)).fetchone(): return None
-    c.execute("insert into case_ref(friend,inviter,ts) values(?,?,?)", (friend, inv, int(time.time())))
-    n = c.execute("select count(*) from case_ref where inviter=?", (inv,)).fetchone()[0]
-    return (inv, n, case_finish(c, inv))
+    if c.execute("select 1 from case_pend where friend=?", (friend,)).fetchone(): return None
+    c.execute("insert into case_pend(friend,inviter,ts,status,who) values(?,?,?,'wait',?)", (friend, inv, int(time.time()), who))
+    return inv
+
+def case_approve(friend, ok):
+    """Решение владельца по заявке друга. Возвращает (текст для владельца, уведомление пригласившему или None, пригласивший)."""
+    c = db(); out = ("Заявка не найдена", None, None)
+    try:
+        c.execute("begin immediate")
+        r = c.execute("select * from case_pend where friend=?", (friend,)).fetchone()
+        if not r: pass
+        elif r["status"] != "wait": out = ("Уже обработано", None, None)
+        elif not ok:
+            c.execute("update case_pend set status='no' where friend=?", (friend,)); out = ("❌ Отклонено, друг не засчитан", None, r["inviter"])
+        else:
+            c.execute("update case_pend set status='ok' where friend=?", (friend,))
+            c.execute("insert or ignore into case_ref(friend,inviter,ts) values(?,?,?)", (friend, r["inviter"], int(time.time())))
+            n = c.execute("select count(*) from case_ref where inviter=?", (r["inviter"],)).fetchone()[0]
+            done = case_finish(c, r["inviter"]); who = r["who"] or str(friend)
+            if done == "done": note = f"🎁 Друг {who} подтверждён — набрано {n}/{CASE_NEED}! Ваш NFT уже в инвентаре GiftUp, можно забирать."
+            elif done == "lost": note = f"Друг {who} подтверждён — набрано {n}/{CASE_NEED}, но такой NFT уже забрал другой игрок. Откройте кейс снова — друзья засчитаны."
+            else: note = f"✅ Друг {who} подтверждён: засчитано {n}/{CASE_NEED}."
+            out = (f"✅ Подтверждено: {n}/{CASE_NEED}", note, r["inviter"])
+        c.execute("commit")
+    except Exception as e:
+        try: c.execute("rollback")
+        except Exception: pass
+        print("case_approve:", e, flush=True); out = ("Ошибка, смотри журнал", None, None)
+    finally: c.close()
+    return out
 
 def case_img(c, t):
     r = c.execute("select img from gifts where type=? and img is not null and img!='' order by id desc limit 1", (t,)).fetchone()
@@ -1022,7 +1052,8 @@ def api_case_spin(x_init_data: str = Header("")):
         pool = [i for i in pool if i in have and is_priced(i)] or [i for i in pool if is_priced(i)] or pool     # приоритет: оценённые и те, что есть на складе
         t = secrets.choice(pool)  # поровну между типами; подарок не бронируется: кто первым выполнит условия, тот и заберёт
         c.execute("insert into case_open(user,gift,ts,status) values(?,?,?,'pending')", (uid, t, int(time.time())))
-        cr = case_credit(c, uid, premium and has_name)   # засчитываем только аккаунты с ником и Telegram Premium
+        who_ = (usr.get("first_name") or str(uid)) + (" @" + usr["username"] if usr.get("username") else "") + f" (id {uid})"
+        cr = case_credit(c, uid, premium and has_name, who_)   # только аккаунты с ником и Premium → на проверку владельцу
         mine = c.execute("select 1 from case_bind where friend=?", (uid,)).fetchone() is not None
         if mine and not premium: note.append("nopremium")
         elif mine and not has_name: note.append("nousername")
@@ -1033,11 +1064,14 @@ def api_case_spin(x_init_data: str = Header("")):
         raise
     finally: c.close()
     if cr:
-        inv, n, done = cr; who = (usr.get("first_name") or str(uid)) + (" @" + usr["username"] if usr.get("username") else "") + f" (id {uid})"
-        print(f"[{stamp()}] кейс: засчитан друг {uid} @{usr.get('username')} premium={usr.get('is_premium')} → {inv}, подписка на {CASE_CHANNEL} подтверждена", flush=True)
-        if done == "done": threading.Thread(target=notify, args=(inv, f"🎁 Друг {who} открыл кейс — набрано {n}/{CASE_NEED}! Ваш NFT уже в инвентаре GiftUp, можно забирать."), daemon=True).start()
-        elif done == "lost": threading.Thread(target=notify, args=(inv, f"Друг {who} открыл кейс — набрано {n}/{CASE_NEED}, но такой NFT уже забрал другой игрок. Откройте кейс снова в GiftUp."), daemon=True).start()
-        else: threading.Thread(target=notify, args=(inv, f"✅ Друг {who} открыл кейс: засчитано {n}/{CASE_NEED}."), daemon=True).start()
+        inv = cr; who = who_
+        print(f"[{stamp()}] кейс: друг {uid} @{usr.get('username')} premium={usr.get('is_premium')} ждёт проверки (пригласил {inv}), подписка на {CASE_CHANNEL} подтверждена", flush=True)
+        kb = {"inline_keyboard": [[{"text": "✅ Подтвердить", "callback_data": f"csok:{uid}"}, {"text": "❌ Отклонить", "callback_data": f"csno:{uid}"}]]}
+        txt = f"🔎 Проверка реферала\nДруг: {who}\nПремиум: да · подписан на канал: да\nПригласил: id {inv}"
+        for a_ in ADMIN_TG:
+            try: tg("sendMessage", chat_id=a_, text=txt, reply_markup=kb)
+            except Exception as e: print("case admin notify:", e, flush=True)
+        threading.Thread(target=notify, args=(inv, "⏳ Друг открыл кейс — ожидает проверки. Как только подтвердим, он будет засчитан."), daemon=True).start()
     return {"ok": True, "state": st, "note": note}
 
 @app.post("/api/case/share")
@@ -1466,6 +1500,16 @@ def on_wd_callback(cq):
     data = cq.get("data") or ""
     if ":" not in data: return
     act, wid = data.split(":", 1)
+    if act in ("csok", "csno") and wid.isdigit():
+        txt, note, inv = case_approve(int(wid), act == "csok")
+        try: tg("answerCallbackQuery", callback_query_id=cq["id"], text=txt[:190])
+        except Exception: pass
+        try:
+            m_ = cq.get("message") or {}
+            if m_.get("message_id"): tg("editMessageText", chat_id=m_["chat"]["id"], message_id=m_["message_id"], text=(m_.get("text") or "Проверка реферала") + "\n\n" + txt)
+        except Exception: pass
+        if note and inv: threading.Thread(target=notify, args=(inv, note), daemon=True).start()
+        return
     if act not in ("wdok", "wdno") or not wid.isdigit(): return
     c = db(); msg = ""
     try:
