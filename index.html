@@ -835,7 +835,7 @@ document.addEventListener("click",function(e){var b=e.target&&e.target.closest?e
 $("kzx").onclick=csClose;$("csinf").onclick=function(){$("csab").classList.add("open")};$("csabx").onclick=function(){$("csab").classList.remove("open")};
 $("csgo").onclick=function(){var m=csMy();if(csBusy)return;if(m&&m.st!=="lost"){csResult();return}$("csserr").textContent="";$("kzs").classList.add("open")};
 $("cssx").onclick=function(){$("kzs").classList.remove("open")};
-$("csdo").onclick=function(){csVisited=true;csOpenUrl(CSL);$("csdo").textContent="Открыто"};
+$("csdo").onclick=function(){csVisited=true;var ch_=(S&&S.case&&S.case.ch)||"";csOpenUrl(ch_?"https://t.me/"+ch_:CSL);$("csdo").textContent="Открыто"};
 $("cschk").onclick=csSpin;
 $("csrx").onclick=function(){$("csr").classList.remove("open")};
 $("csix").onclick=function(){$("csi").classList.remove("open")};

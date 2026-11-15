@@ -1033,7 +1033,8 @@ def api_case_spin(x_init_data: str = Header("")):
         raise
     finally: c.close()
     if cr:
-        inv, n, done = cr; who = usr.get("first_name") or str(uid)
+        inv, n, done = cr; who = (usr.get("first_name") or str(uid)) + (" @" + usr["username"] if usr.get("username") else "") + f" (id {uid})"
+        print(f"[{stamp()}] кейс: засчитан друг {uid} @{usr.get('username')} premium={usr.get('is_premium')} → {inv}, подписка на {CASE_CHANNEL} подтверждена", flush=True)
         if done == "done": threading.Thread(target=notify, args=(inv, f"🎁 Друг {who} открыл кейс — набрано {n}/{CASE_NEED}! Ваш NFT уже в инвентаре GiftUp, можно забирать."), daemon=True).start()
         elif done == "lost": threading.Thread(target=notify, args=(inv, f"Друг {who} открыл кейс — набрано {n}/{CASE_NEED}, но такой NFT уже забрал другой игрок. Откройте кейс снова в GiftUp."), daemon=True).start()
         else: threading.Thread(target=notify, args=(inv, f"✅ Друг {who} открыл кейс: засчитано {n}/{CASE_NEED}."), daemon=True).start()
@@ -1213,12 +1214,19 @@ def on_start(m):
     except Exception as e: print("start:", e)
 
 def dedupe_house(seen=None):
-    """Один и тот же NFT (тип + номер) не может лежать на складе дважды: оставляем запись, которая реально есть на аккаунте (или новейшую)."""
+    """Один и тот же NFT (название + номер) не может лежать на складе дважды, даже если записи получили разные типы/цены.
+    Оставляем ту, что реально есть на аккаунте; при равенстве — с более высокой (обновлённой) ценой, затем новейшую."""
     c = db(); n = 0
     try:
-        for d in c.execute("select type, number from gifts where status='house' and type>=0 and number>0 group by type, number having count(*)>1").fetchall():
-            rows = c.execute("select id, ogid from gifts where status='house' and type=? and number=? order by id desc", (d["type"], d["number"])).fetchall()
-            keep = next((r for r in rows if seen and r["ogid"] in seen), rows[0])
+        groups = {}
+        for r in c.execute("select id, type, number, ogid from gifts where status='house' and type>=0 and number>0").fetchall():
+            if not (0 <= r["type"] < len(CAT)): continue
+            base = (CAT[r["type"]].get("key") or CAT[r["type"]].get("name") or "").strip().lower()
+            groups.setdefault((base, r["number"]), []).append(r)
+        for rows in groups.values():
+            if len(rows) < 2: continue
+            def score(r): return (1 if (seen and r["ogid"] in seen) else 0, float(CAT[r["type"]].get("price") or 0), r["id"])
+            keep = max(rows, key=score)
             for r in rows:
                 if r["id"] != keep["id"]: c.execute("update gifts set status='gone' where id=?", (r["id"],)); n += 1
     finally: c.close()
