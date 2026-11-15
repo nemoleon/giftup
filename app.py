@@ -1062,10 +1062,12 @@ def api_case_share(x_init_data: str = Header("")):
         slug = nft_slug(base, sample); link = case_link(uid)
     finally: c.close()
     nm = f"{base} #{no}" if no else base
-    txt = (f"🎁 Мне выпал NFT {nm} в бесплатном кейсе GiftUp Now.\n\n"
+    import html as _h
+    nurl = f"https://t.me/nft/{slug}"
+    txt = (f"🎁 Мне выпал NFT <a href=\"{nurl}\">{_h.escape(nm)}</a> в бесплатном кейсе GiftUp Now.\n\n"
            f"Чтобы его забрать, нужно позвать {CASE_NEED} друзей с Telegram Premium: заходи и открывай кейс, так ты мне поможешь — и сам сможешь выиграть NFT.")
     res = {"type": "article", "id": f"cs{uid}{int(time.time())}", "title": f"Выпал {nm}",
-           "input_message_content": {"message_text": txt, "link_preview_options": {"url": f"https://t.me/nft/{slug}", "show_above_text": True, "prefer_large_media": True}},
+           "input_message_content": {"message_text": txt, "parse_mode": "HTML", "link_preview_options": {"url": nurl, "show_above_text": True, "prefer_large_media": True}},
            "reply_markup": {"inline_keyboard": [[{"text": "Крутить бесплатно", "url": link}]]}}
     try:
         pm = tg("savePreparedInlineMessage", user_id=uid, result=res, allow_user_chats=True, allow_bot_chats=False, allow_group_chats=True, allow_channel_chats=True)
@@ -1210,6 +1212,19 @@ def on_start(m):
         tg("sendMessage", **p)
     except Exception as e: print("start:", e)
 
+def dedupe_house(seen=None):
+    """Один и тот же NFT (тип + номер) не может лежать на складе дважды: оставляем запись, которая реально есть на аккаунте (или новейшую)."""
+    c = db(); n = 0
+    try:
+        for d in c.execute("select type, number from gifts where status='house' and type>=0 and number>0 group by type, number having count(*)>1").fetchall():
+            rows = c.execute("select id, ogid from gifts where status='house' and type=? and number=? order by id desc", (d["type"], d["number"])).fetchall()
+            keep = next((r for r in rows if seen and r["ogid"] in seen), rows[0])
+            for r in rows:
+                if r["id"] != keep["id"]: c.execute("update gifts set status='gone' where id=?", (r["id"],)); n += 1
+    finally: c.close()
+    if n: print(f"[{stamp()}] склад: убрано дублей NFT: {n}", flush=True)
+    return n
+
 def import_stock(restore=False):
     """Забирает NFT, которые уже лежат на аккаунте владельца, в «склад» (то, что пришло до подключения бота, событием не приходит)."""
     bc = meta_get("bc")
@@ -1253,6 +1268,7 @@ def import_stock(restore=False):
                     c.execute("update gifts set status='gone' where id=?", (r["id"],)); gone += 1
         finally: c.close()
         print(f"[{stamp()}] со склада убрано NFT, которых нет на аккаунте: {gone}", flush=True)
+    dedupe_house(seen)
     print(f"[{stamp()}] импорт склада: на аккаунте {n_all} NFT, добавлено {n_new}", flush=True)
     return n_new
 
