@@ -137,6 +137,8 @@ def init_db():
     except Exception: pass
     try: c.execute("alter table gifts add column img text default ''")   # картинка конкретного NFT
     except Exception: pass
+    try: c.execute("alter table gifts add column mimg text default ''")   # картинка только модели NFT (без фона)
+    except Exception: pass
     for ddl in ("alter table users add column ref_by integer default 0", "alter table users add column ref_earn real default 0"):
         try: c.execute(ddl)
         except Exception: pass
@@ -335,7 +337,35 @@ def auto_price(t, base, number):
         print(f"[{stamp()}] 💰 цена {x['name']} / {x.get('model')} = {v} GRAM (по ценности Telegram)", flush=True)
     except Exception as e: print("auto_price:", base, number, e, flush=True)
 
-def attach_image(ogid, base, number, t=-1):
+def model_fid(g):
+    """file_id миниатюры стикера модели NFT (сама модель без фона) из объекта UniqueGift."""
+    st = ((g or {}).get("model") or {}).get("sticker") or {}
+    return ((st.get("thumbnail") or {}).get("file_id")) or ""
+
+def save_model_image(slug, fid):
+    """Скачивает картинку модели (без фона) через Bot API и кладёт у себя. Возвращает путь /nftimg/<файл> или ''."""
+    if not fid: return ""
+    try:
+        fp = tg("getFile", file_id=fid).get("file_path") or ""
+        ext = fp.rsplit(".", 1)[-1].lower() if "." in fp else "webp"
+        if ext not in ("webp", "png", "jpg"): ext = "webp"
+        fn = "m_" + re.sub(r"[^A-Za-z0-9_-]", "", slug) + "." + ext
+        path = os.path.join(IMG_DIR, fn)
+        if not (os.path.exists(path) and os.path.getsize(path) > 200):
+            r = httpx.get(f"https://api.telegram.org/file/bot{TOKEN}/{fp}", timeout=20)
+            if r.status_code != 200 or len(r.content) < 200: return ""
+            open(path, "wb").write(r.content)
+        return "/nftimg/" + fn
+    except Exception as e:
+        print("model img:", e, flush=True); return ""
+
+def attach_image(ogid, base, number, t=-1, mfid=""):
+    if mfid:
+        mp = save_model_image(nft_slug(base, number), mfid)
+        if mp:
+            c = db()
+            try: c.execute("update gifts set mimg=? where ogid=?", (mp, ogid))
+            finally: c.close()
     if t >= 0: auto_price(t, base, number)
     try:
         p = save_nft_image(nft_slug(base, number))
@@ -350,8 +380,9 @@ def attach_image(ogid, base, number, t=-1):
 def nft_img(fn: str):
     fn = re.sub(r"[^A-Za-z0-9_.-]", "", fn)
     p = os.path.join(IMG_DIR, fn)
-    if not fn.endswith(".jpg") or not os.path.exists(p): raise HTTPException(404)
-    return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+    ext = fn.rsplit(".", 1)[-1].lower()
+    if ext not in ("jpg", "webp", "png") or not os.path.exists(p): raise HTTPException(404)
+    return FileResponse(p, media_type={"jpg": "image/jpeg", "webp": "image/webp", "png": "image/png"}[ext], headers={"Cache-Control": "public, max-age=86400"})
 
 def meta_get(k):
     c = db(); r = c.execute("select v from meta where k=?", (k,)).fetchone(); c.close()
@@ -486,12 +517,16 @@ def case_info(c, uid):
     my = None
     r = c.execute("select status, ts, gift, gid from case_open where user=?", (uid,)).fetchone()
     if r:
-        no = 0; im = ""
+        no = 0; im = ""; mim = ""
         if r["gid"]:
-            g = c.execute("select number, img from gifts where id=?", (r["gid"],)).fetchone()
-            if g: no, im = g["number"] or 0, g["img"] or ""
+            g = c.execute("select number, img, mimg from gifts where id=?", (r["gid"],)).fetchone()
+            if g: no, im, mim = g["number"] or 0, g["img"] or "", g["mimg"] or ""
         if not im: im = case_img(c, r["gift"])
-        my = {"st": r["status"], "t": r["gift"], "no": no, "im": im, "n": case_names_of(r["gift"]), "exp": r["ts"] + CASE_TTL_H * 3600, "ts": r["ts"]}
+        if not mim:
+            g2 = c.execute("select mimg from gifts where type=? and mimg is not null and mimg!='' order by id desc limit 1", (r["gift"],)).fetchone()
+            mim = g2["mimg"] if g2 else ""
+        mdl = ((CAT[r["gift"]].get("model") or "").replace(BLACK_SFX, "") if 0 <= r["gift"] < len(CAT) else "")
+        my = {"st": r["status"], "t": r["gift"], "no": no, "im": im, "mim": mim, "m": mdl, "n": case_names_of(r["gift"]), "exp": r["ts"] + CASE_TTL_H * 3600, "ts": r["ts"]}
     return {"items": items, "need": CASE_NEED, "ch": CASE_CHANNEL.lstrip("@"), "my": my, "fr": c.execute("select count(*) from case_ref where inviter=?", (uid,)).fetchone()[0], "link": case_link(uid)}
 
 def state(c, uid):
@@ -1116,7 +1151,7 @@ def on_message(m):
     finally: c.close()
     if not cur.rowcount:
         print(f"[{stamp()}] ↳ уже учтён ранее (повтор), пропуск", flush=True)
-    threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number"), t), daemon=True).start()
+    threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number"), t, model_fid(g)), daemon=True).start()
     if cur.rowcount:
         nm = CAT[t]["name"] if t >= 0 else g.get("base_name", "подарок")
         print(f"[{stamp()}] ↳ ЗАЧИСЛЕН: {nm} #{g.get('number')} → {'в склад (хозяин)' if house else 'в инвентарь ' + str(sender)}"
@@ -1166,10 +1201,10 @@ def import_stock(restore=False):
                     c.execute("update gifts set type=? where id=?", (t, row["id"]))     # был по общей цене коллекции — переводим на тип по модели
                 if restore and row and row["status"] == "gone" and t >= 0:      # раньше «очищен», но подарок всё ещё в профиле — возвращаем на склад
                     c.execute("update gifts set status='house', owner=null where id=?", (row["id"],)); n_new += 1
-                need_img = bool(row) and not row["img"]
+                need_img = bool(row) and (not row["img"] or (not row["mimg"] and bool(model_fid(g))))
             finally: c.close()
             need_pr = t >= 0 and CAT[t].get("custom") and not CAT[t].get("fixed") and not CAT[t].get("vp") and (_ub["cl"] is not None or bool(GAKEY))
-            if need_img or need_pr: threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number"), t), daemon=True).start()
+            if need_img or need_pr: threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number"), t, model_fid(g)), daemon=True).start()
             if cur.rowcount:
                 n_new += 1
                 print(f"[{stamp()}] 📦 импорт на склад: {g.get('base_name')} #{g.get('number')} модель {(g.get('model') or {}).get('name')}"
