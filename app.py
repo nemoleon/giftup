@@ -19,7 +19,7 @@ TRANSFER_STARS = int(os.environ.get("TRANSFER_STARS", "0"))  # звёзды за
 DB = os.environ.get("DB", "giftup.db")
 HERE = os.path.dirname(os.path.abspath(__file__))
 CAT = json.load(open(os.path.join(HERE, "catalog.json"), encoding="utf-8"))  # индекс = id типа на фронте
-EDGE, MAXCH = 0.75, 75.0
+EDGE, MAXCH = 0.80, 75.0
 STARS_PER_GRAM = float(os.environ.get("STARS_PER_GRAM", "125"))   # курс пополнения звёздами: сколько звёзд за 1 GRAM
 STARS_MIN, STARS_MAX = 15, 10000
 DEPOSIT_ADDRESS = os.environ.get("DEPOSIT_ADDRESS", "")        # адрес кошелька, куда игроки шлют GRAM (отдельный кошелёк!)
@@ -42,7 +42,8 @@ IP_LIMIT = int(os.environ.get("IP_LIMIT", "90"))                # запросо
 CASE_CHANNEL = os.environ.get("CASE_CHANNEL", "@giftupnow")        # канал, на который нужно подписаться (бот должен быть в нём админом, иначе подписку не проверить)
 CASE_NAMES = [x.strip() for x in os.environ.get("CASE_NAMES", "Xmas Stocking,Lol Pop,Bow Tie").split(",") if x.strip()]   # из каких NFT (по названию) выпадает приз
 CASE_NEED = int(os.environ.get("CASE_NEED", "3"))                  # сколько друзей с Premium нужно позвать
-CASE_TTL_H = int(os.environ.get("CASE_TTL_H", "72"))               # сколько часов приз ждёт друзей, потом возвращается на склад
+CASE_TTL_H = int(os.environ.get("CASE_TTL_H", "24"))               # сколько часов даётся на друзей, потом заявка сгорает (и можно крутить снова)
+CASE_COOLDOWN_H = 24                                                # крутить кейс можно раз в 24 часа
 CASE_DAILY = int(os.environ.get("CASE_DAILY", "30"))               # максимум открытий кейса за сутки (защита склада)
 
 # ---------- защита от спама (лимит запросов) ----------
@@ -175,7 +176,7 @@ def ensure_type(base, model):
         c = db()
         try: cid = c.execute("insert into custom(key,model,name,price) values(?,?,?,?)", (base, model, base, price)).lastrowid
         finally: c.close()
-        CAT.append({"id": len(CAT), "key": base, "model": model, "name": base, "price": price, "custom": cid, "priced": known is not None or model.endswith(BLACK_SFX)})
+        CAT.append({"id": len(CAT), "key": base, "model": model, "name": base, "price": price, "custom": cid, "priced": False})     # пока цена модели не определена по рынку — NFT недоступен (защита от дешёвой оценки)
         print(f"[{stamp()}] ➕ новый тип NFT: {base} / {model}, цена {price} GRAM (поменять: /api/admin/price)", flush=True)
         return len(CAT) - 1
 
@@ -430,6 +431,7 @@ def case_names_of(t): return (CAT[t].get("key") or CAT[t].get("name") or "").str
 def case_expire(c):
     """Заявка, которая не дождалась друзей за CASE_TTL_H часов, закрывается; человек может открыть кейс заново."""
     old = int(time.time()) - CASE_TTL_H * 3600
+    c.execute("delete from case_ref where inviter in (select user from case_open where status in ('pending','lost') and ts<?)", (old,))   # сгорает вместе с засчитанными друзьями
     c.execute("delete from case_open where status in ('pending','lost') and ts<?", (old,))
 
 def case_bind(c, uid, sp):
@@ -456,7 +458,7 @@ def case_finish(c, uid):
     return "done"
 
 def case_credit(c, friend, premium):
-    """Друг открыл кейс: засчитываем пригласившему, если у друга Telegram Premium. Возвращает (inviter, n, результат case_finish) или None."""
+    """Друг открыл кейс: засчитываем пригласившему, если у друга Telegram Premium и есть @username. Возвращает (inviter, n, результат case_finish) или None."""
     b = c.execute("select inviter from case_bind where friend=?", (friend,)).fetchone()
     if not b or not premium: return None
     inv = b["inviter"]
@@ -485,7 +487,7 @@ def case_info(c, uid):
             g = c.execute("select number, img from gifts where id=?", (r["gid"],)).fetchone()
             if g: no, im = g["number"] or 0, g["img"] or ""
         if not im: im = case_img(c, r["gift"])
-        my = {"st": r["status"], "t": r["gift"], "no": no, "im": im, "n": case_names_of(r["gift"]), "exp": r["ts"] + CASE_TTL_H * 3600}
+        my = {"st": r["status"], "t": r["gift"], "no": no, "im": im, "n": case_names_of(r["gift"]), "exp": r["ts"] + CASE_TTL_H * 3600, "ts": r["ts"]}
     return {"items": items, "need": CASE_NEED, "ch": CASE_CHANNEL.lstrip("@"), "my": my, "fr": c.execute("select count(*) from case_ref where inviter=?", (uid,)).fetchone()[0], "link": case_link(uid)}
 
 def state(c, uid):
@@ -736,7 +738,7 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         if extra > u["bal"] + 1e-9 and not demo: return fail(c, "Не хватает баланса")
         stake = extra + sum(CAT[g["type"]]["price"] for g in gifts)
         price = CAT[want]["price"]
-        room = MAXCH / 100 * price - sum(CAT[g["type"]]["price"] for g in gifts)     # выше максимального шанса ставку с баланса не принимаем
+        room = MAXCH / 100 * price / EDGE - sum(CAT[g["type"]]["price"] for g in gifts)     # выше максимального шанса ставку с баланса не принимаем
         if extra > max(0.0, room) + 1e-6: extra = round(max(0.0, room), 4)
         stake = extra + sum(CAT[g["type"]]["price"] for g in gifts)
         if stake <= 0: return fail(c, "Добавь ставку")
@@ -749,25 +751,15 @@ def api_boost(body: dict, x_init_data: str = Header("")):
             if wg: target = c.execute("select * from gifts where id=? and type=? and status='house'", (wg, want)).fetchone()
             if not target: target = c.execute("select * from gifts where type=? and status='house' order by random() limit 1", (want,)).fetchone()
             if not target and not demo: return fail(c, "Этого подарка сейчас нет в наличии")
-        display_ch = min(MAXCH, stake / price * 100)
-        if demo:                # в демо-режиме для админа работает честный бросок без подкрутки
+        ch = min(MAXCH, stake / price * 100 * EDGE)
+        if demo:                # честный бросок по показанному шансу, без записи в базу
             roll = secrets.randbelow(10**9) / 10**7
-            win = abs(roll - 50) < display_ch / 2
+            win = abs(roll - 50) < ch / 2
             gift = {"id": -1, "t": want, "no": (target["number"] if target else 0), "im": ((target["img"] if target else "") or "")} if win else None
             st = state(c, uid); c.execute("rollback")
-            return {"ok": True, "win": win, "roll": roll, "chance": display_ch, "gift": gift, "state": st, "demo": True}
-        current_edge = 0.60 if display_ch < 40.0 else EDGE
-        real_ch = display_ch * current_edge
+            return {"ok": True, "win": win, "roll": roll, "chance": ch, "gift": gift, "state": st, "demo": True}
         roll = secrets.randbelow(10**9) / 10**7          # случайное число 0..100 на сервере
-        win = abs(roll - 50) < real_ch / 2
-        visual_roll = roll
-        if not win and abs(visual_roll - 50) < display_ch / 2:
-            red_space = 100.0 - display_ch
-            pos_in_red = (roll / 100.0) * red_space
-            if pos_in_red < (50.0 - display_ch / 2):
-                visual_roll = pos_in_red
-            else:
-                visual_roll = pos_in_red + display_ch
+        win = abs(roll - 50) < ch / 2
         for g in gifts:
             if CAT[g["type"]].get("nw"): c.execute("update gifts set owner=null, status='gone' where id=?", (g["id"],))   # обычный подарок сгорает
             else: c.execute("update gifts set owner=null, status='house' where id=?", (g["id"],))
@@ -784,13 +776,39 @@ def api_boost(body: dict, x_init_data: str = Header("")):
         now = int(time.time())
         if win or not gifts:    # выигрыш (или проигрыш ставки с баланса) — строка про желаемый подарок
             c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,?,?,?)",
-                      (uid, now, want, (gift or {}).get("no", 0), 1 if win else 0, display_ch, price))
+                      (uid, now, want, (gift or {}).get("no", 0), 1 if win else 0, ch, price))
         else:                   # проигрыш: в истории — сгоревшие подарки-ставки
             for g in gifts:
                 c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,?,?,?)",
-                          (uid, now, g["type"], g["number"], 0, display_ch, CAT[g["type"]]["price"]))
+                          (uid, now, g["type"], g["number"], 0, ch, CAT[g["type"]]["price"]))
         st = state(c, uid); c.execute("commit")
-        return {"ok": True, "win": win, "roll": visual_roll, "chance": display_ch, "gift": gift, "state": st}
+        return {"ok": True, "win": win, "roll": roll, "chance": ch, "gift": gift, "state": st}
+    except Exception:
+        try: c.execute("rollback")
+        except Exception: pass
+        raise
+    finally: c.close()
+
+@app.post("/api/free")
+def api_free(x_init_data: str = Header("")):
+    return {"ok": False, "error": "Недоступно"}   # бесплатный кейс отключён
+    usr = check_init(x_init_data); uid = usr["id"]
+    if not hit(f"free:{uid}", 5, 60): return {"ok": False, "error": "Слишком часто, подожди немного"}
+    c = db()
+    try:
+        c.execute("begin immediate")
+        u = get_user(c, uid, usr.get("first_name", ""))
+        today = datetime.date.today().isoformat()
+        if u["free_day"] == today: return fail(c, "Бесплатный кейс уже открыт сегодня")
+        cheap = [i for i, g in enumerate(CAT) if g["price"] < 10 and not g.get("nw")]
+        if not cheap: return fail(c, "Кейс пуст")
+        q = ",".join("?" * len(cheap))
+        t = c.execute(f"select * from gifts where status='house' and type in ({q}) order by random() limit 1", cheap).fetchone()
+        if not t: return fail(c, "Кейс пуст")
+        c.execute("update gifts set owner=?, status='held' where id=?", (uid, t["id"]))
+        c.execute("update users set free_day=? where id=?", (today, uid))
+        st = state(c, uid); c.execute("commit")
+        return {"ok": True, "gift": {"id": t["id"], "t": t["type"], "no": t["number"]}, "state": st}
     except Exception:
         try: c.execute("rollback")
         except Exception: pass
@@ -944,7 +962,7 @@ def api_case_spin(x_init_data: str = Header("")):
     sub = case_subscribed(uid)
     if sub is None: return {"ok": False, "step": 1, "error": "Не удалось проверить подписку. Попробуйте ещё раз через минуту."}
     if not sub: return {"ok": False, "step": 1, "error": "Не все шаги выполнены: подпишитесь на канал и проверьте ещё раз."}
-    premium = bool(usr.get("is_premium")); sp = usr.get("_sp", "")
+    premium = bool(usr.get("is_premium")); has_name = bool((usr.get("username") or "").strip()); sp = usr.get("_sp", "")
     note = []
     c = db()
     try:
@@ -952,16 +970,21 @@ def api_case_spin(x_init_data: str = Header("")):
         get_user(c, uid, usr.get("first_name", ""), "")
         case_bind(c, uid, sp); case_expire(c)
         c.execute("delete from case_open where user=? and status='lost'", (uid,))
-        if c.execute("select 1 from case_open where user=?", (uid,)).fetchone(): return fail(c, "Вы уже открывали этот кейс")
+        prev = c.execute("select ts, status from case_open where user=?", (uid,)).fetchone()
+        if prev:
+            if prev["status"] == "pending": return fail(c, "У вас уже открыт кейс: позовите друзей или дождитесь, пока заявка сгорит")
+            if prev["ts"] > int(time.time()) - CASE_COOLDOWN_H * 3600: return fail(c, "Крутить кейс можно раз в 24 часа, попробуйте позже")
+            c.execute("delete from case_open where user=?", (uid,))
         if c.execute("select count(*) from case_open where ts>?", (int(time.time()) - 86400,)).fetchone()[0] >= CASE_DAILY:
             return fail(c, "На сегодня кейсы закончились, загляните завтра")
         pool = sorted({i for i in range(len(CAT)) if case_names_of(i) in CASE_NAMES})   # витрина: призы показываем всегда, наличие проверяется при выдаче
         if not pool: return fail(c, "Кейс временно недоступен")
         t = secrets.choice(pool)  # поровну между типами; подарок не бронируется: кто первым выполнит условия, тот и заберёт
         c.execute("insert into case_open(user,gift,ts,status) values(?,?,?,'pending')", (uid, t, int(time.time())))
-        cr = case_credit(c, uid, premium)
+        cr = case_credit(c, uid, premium and has_name)   # засчитываем только аккаунты с ником и Telegram Premium
         mine = c.execute("select 1 from case_bind where friend=?", (uid,)).fetchone() is not None
         if mine and not premium: note.append("nopremium")
+        elif mine and not has_name: note.append("nousername")
         st = state(c, uid); c.execute("commit")
     except Exception:
         try: c.execute("rollback")
@@ -1048,7 +1071,7 @@ def match(base, model):
     for i, x in enumerate(CAT):
         if not x["key"] or x["key"].lower() != base: continue
         if x.get("model") and x["model"].lower() == model: return i
-        if not x.get("model") and best < 0 and not model.endswith(BLACK_SFX.lower()): best = i
+        if not x.get("model") and best < 0 and not model: best = i      # общая цена коллекции — только если модель неизвестна; иначе тип по модели (цена с маркета)
     return best
 
 def stamp(): return datetime.datetime.now().strftime("%d.%m %H:%M:%S")
@@ -1133,11 +1156,13 @@ def import_stock(restore=False):
                 row = c.execute("select * from gifts where ogid=?", (ogid,)).fetchone()
                 if row and row["type"] < 0 and t >= 0 and row["status"] == "unknown":     # раньше не распознавался — чиним
                     c.execute("update gifts set type=?, status='house', owner=null where id=?", (t, row["id"]))
+                if row and t >= 0 and row["type"] != t and row["type"] >= 0 and not CAT[row["type"]].get("custom") and row["status"] in ("house", "held"):
+                    c.execute("update gifts set type=? where id=?", (t, row["id"]))     # был по общей цене коллекции — переводим на тип по модели
                 if restore and row and row["status"] == "gone" and t >= 0:      # раньше «очищен», но подарок всё ещё в профиле — возвращаем на склад
                     c.execute("update gifts set status='house', owner=null where id=?", (row["id"],)); n_new += 1
                 need_img = bool(row) and not row["img"]
             finally: c.close()
-            need_pr = t >= 0 and CAT[t].get("custom") and not CAT[t].get("fixed") and not CAT[t].get("vp") and _ub["cl"] is not None
+            need_pr = t >= 0 and CAT[t].get("custom") and not CAT[t].get("fixed") and not CAT[t].get("vp") and (_ub["cl"] is not None or bool(GAKEY))
             if need_img or need_pr: threading.Thread(target=attach_image, args=(ogid, g.get("base_name"), g.get("number"), t), daemon=True).start()
             if cur.rowcount:
                 n_new += 1
