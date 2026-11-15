@@ -291,7 +291,7 @@ def _ga_floor_raw(name, model):
     key = name.lower()
     with _ga_lock:
         hit_ = _ga["cache"].get(key)
-        if hit_ and time.time() - hit_[0] < 900: d = hit_[1]
+        if hit_ and time.time() - hit_[0] < 240: d = hit_[1]
         else:
             wait = 1.3 - (time.time() - _ga["t"])
             if wait > 0: time.sleep(wait)
@@ -507,14 +507,14 @@ def state(c, uid):
     for r_ in c.execute("select type from gifts where owner=? and status='out'", (uid,)):
         try: wdn += float(CAT[r_["type"]].get("price") or 0) if 0 <= r_["type"] < len(CAT) else 0
         except Exception: pass
-    bg = c.execute("select want t, no, ch, price pr from hist where user=? and win=1 order by price desc, id desc limit 1", (uid,)).fetchone()
+    bg = c.execute("select want t, no, ch, price pr from hist where user=? and win=1 order by (price * 100.0 / max(ch, 0.01)) desc, price desc, id desc limit 1", (uid,)).fetchone()     # лучший буст: чем реже шанс и дороже подарок, тем лучше
     if bg:
         bg = dict(bg); gi_ = c.execute("select img from gifts where type=? and number=? and img is not null order by id desc limit 1", (bg["t"], bg["no"])).fetchone() if bg["no"] else None
         bg["im"] = (gi_["img"] if gi_ else "") or ""; bg["m"] = ((CAT[bg["t"]].get("model") or "").replace(BLACK_SFX, "") if 0 <= bg["t"] < len(CAT) else "")
     return {"nwwd": WITHDRAW_REGULAR, "custom": [{"t": i, "n": x["name"], "v": x["price"], "m": x.get("model", "")} for i, x in enumerate(CAT) if x.get("custom")],
             "stock_items": si, "hist": hist,
             "topups": [{"ts": r["ts"], "a": r["amount"], "k": r["kind"], "r": r["ref"]} for r in c.execute("select * from topup where user=? order by id desc limit 100", (uid,))], "bg": bg or None,
-            "case": case_info(c, uid), "mt": 1 if maint_on() else 0, "demo": 1 if (demo_on() and uid in ADMIN_TG) else 0, "wdn": wdn, "bal": u["bal"], "boosts": u["boosts"], "best": u["best"], "inv": inv, "stock": stock,
+            "case": case_info(c, uid), "mt": 1 if maint_on() else 0, "demo": 1 if (demo_on() and uid in ADMIN_TG) else 0, "wdn": wdn, "bal": u["bal"], "boosts": u["boosts"], "best": (bg["pr"] if bg else u["best"]), "inv": inv, "stock": stock,
             "prices": [g["price"] for g in CAT], "fee": WITHDRAW_FEE, "ref": {"n": c.execute("select count(*) from users where ref_by=?", (uid,)).fetchone()[0], "e": round(u["ref_earn"] or 0, 4), "l": ref_link(uid), "pct": int(REF_PCT * 100)}, "spg": STARS_PER_GRAM, "smin": STARS_MIN, "online": online_count(), "owner": owner_username(),
             "total": c.execute("select coalesce(sum(boosts),0) from users").fetchone()[0]}
 
@@ -1569,7 +1569,7 @@ def price_loop():   # необязательно: PRICE_SYNC=1 и pip install Te
     api = TelegramGifts()
     while True:
         for x in CAT:
-            if not x["key"] or x.get("fixed") or (x.get("custom") and _ub["cl"]): continue
+            if not x["key"] or x.get("fixed") or x.get("custom") or x.get("model"): continue     # цены по моделям ведёт ga_loop, здесь только общие цены коллекций
             try:
                 info = api.get_gift(x["key"]) or {}
                 v = [p for k, p in (info.get("prices") or {}).items() if k.endswith("_price_ton") and isinstance(p, (int, float)) and p > 0]
@@ -1583,22 +1583,45 @@ def price_loop():   # необязательно: PRICE_SYNC=1 и pip install Te
             except Exception as e: print("price:", x["key"], e)
         time.sleep(300)
 
+def reprice_one(x):
+    """Свежая цена модели: Gift Asset -> маркет Telegram -> «ценность». Возвращает число или None."""
+    v = None
+    try: v = ga_floor(x["name"], x.get("model"))
+    except Exception as e: print("giftasset:", x.get("name"), e, flush=True)
+    if v is None and _ub["cl"]:
+        c = db()
+        try: r = c.execute("select number from gifts where type=? and number is not null order by id desc limit 1", (CAT.index(x),)).fetchone()
+        finally: c.close()
+        if r:
+            slug = nft_slug(x["name"], r["number"])
+            try: v = tg_floor_ton(slug)
+            except Exception as e: print("маркет:", slug, e, flush=True)
+            if v is None:
+                try: v = tg_value_ton(slug)
+                except Exception as e: print("ценность:", slug, e, flush=True)
+            if v is not None and str(x.get("model") or "").endswith(BLACK_SFX): v = max(v, BLACK_PRICE)
+    return v
+
+PRICE_REFRESH = max(120, int(os.environ.get("PRICE_REFRESH", "300")))     # как часто пересчитывать цены, секунд
 def ga_loop():
-    """Каждые 5 минут пробует оценить NFT-типы, у которых ещё «На оценке» (Gift Asset)."""
+    """Каждые PRICE_REFRESH секунд пересчитывает цены ВСЕХ типов NFT по моделям (не только новых) — цены всегда свежие."""
     time.sleep(20)
     while True:
         try:
             for x in list(CAT):
-                if not x.get("custom") or x.get("fixed") or x.get("priced"): continue
-                v = ga_floor(x["name"], x.get("model"))
+                if not x.get("custom") or x.get("fixed"): continue
+                v = reprice_one(x)
                 if v is None: continue
+                old = x.get("price")
                 with _cat_lock: x["price"] = v; x["vp"] = True; x["priced"] = True
-                c = db()
-                try: c.execute("update custom set price=?, psrc=1 where id=? and fixed=0", (v, x["custom"]))
-                finally: c.close()
-                print(f"[{stamp()}] 💰 цена {x['name']} / {x.get('model')} = {v} GRAM (Gift Asset)", flush=True)
+                if old != v or not x.get("psrc_saved"):
+                    c = db()
+                    try: c.execute("update custom set price=?, psrc=1 where id=? and fixed=0", (v, x["custom"]))
+                    finally: c.close()
+                    x["psrc_saved"] = True
+                if old != v: print(f"[{stamp()}] 💰 цена {x['name']} / {x.get('model')}: {old} -> {v} GRAM", flush=True)
         except Exception as e: print("ga_loop:", e, flush=True)
-        time.sleep(300)
+        time.sleep(PRICE_REFRESH)
 
 @app.on_event("startup")
 def startup():
@@ -1607,4 +1630,4 @@ def startup():
     threading.Thread(target=withdraw_loop, daemon=True).start()
     threading.Thread(target=deposit_loop, daemon=True).start()
     if os.environ.get("PRICE_SYNC") == "1": threading.Thread(target=price_loop, daemon=True).start()
-    if GAKEY: threading.Thread(target=ga_loop, daemon=True).start()
+    if GAKEY or TG_SESSION: threading.Thread(target=ga_loop, daemon=True).start()
