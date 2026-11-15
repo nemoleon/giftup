@@ -431,6 +431,9 @@ def case_names_of(t): return (CAT[t].get("key") or CAT[t].get("name") or "").str
 def case_expire(c):
     """Заявка, которая не дождалась друзей за CASE_TTL_H часов, закрывается; человек может открыть кейс заново."""
     old = int(time.time()) - CASE_TTL_H * 3600
+    for r_ in c.execute("select user, gift from case_open where status in ('pending','lost')").fetchall():     # приз убрали из кейса (например, «Новогодний носок») — заявка сбрасывается
+        if case_names_of(r_["gift"]) not in CASE_NAMES:
+            c.execute("delete from case_ref where inviter=?", (r_["user"],)); c.execute("delete from case_open where user=?", (r_["user"],))
     c.execute("delete from case_ref where inviter in (select user from case_open where status in ('pending','lost') and ts<?)", (old,))   # сгорает вместе с засчитанными друзьями
     c.execute("delete from case_open where status in ('pending','lost') and ts<?", (old,))
 
