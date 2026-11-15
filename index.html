@@ -258,6 +258,10 @@ requestAnimationFrame(frame)})();
 <button id="dpx" style="width:100%;margin-top:12px;padding:14px;border-radius:18px;background:var(--cd);font-weight:600">Закрыть</button></div></div>
 <style id="cscss">
 #kz,#csr{position:fixed;inset:0;z-index:13;background:#0c0a0f;display:none;flex-direction:column;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;padding:calc(14px + var(--ti,0px)) 16px 34px;-webkit-overflow-scrolling:touch}#kz.open,#csr.open{display:flex}#csr{z-index:14}
+#kz,#csr{padding-left:max(16px,calc((100vw - 480px)/2));padding-right:max(16px,calc((100vw - 480px)/2));-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}#kz>*,#csr>*{flex:none}#kz img,#csr img{-webkit-user-drag:none;user-drag:none;pointer-events:none}
+.csbx{max-width:480px;margin:0 auto}
+@media (max-height:860px){.csh{font-size:28px;margin-top:4px}.css0{font-size:14px;margin-bottom:0}.csw{height:214px;margin-top:8px}#csst{top:20px}.csc{height:170px}.csc img{width:100px;height:100px}.csth{margin-top:16px}.csgo{height:56px;margin-top:10px}}
+@media (max-height:720px){.css0{display:none}.csw{height:190px}.csc{height:150px;gap:6px}.csc img{width:84px;height:84px}}
 .csbk{width:46px;height:46px;border-radius:50%;background:var(--cd2);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;flex:none}
 .cstop{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .csh{font-size:34px;font-weight:900;letter-spacing:-.5px;margin:14px 4px 4px;font-family:ui-rounded,"SF Pro Rounded",system-ui,sans-serif}.css0{color:var(--mut);font-size:16px;line-height:1.35;margin:0 4px 6px}
@@ -341,7 +345,7 @@ var T=[
 T[12].st=814;T[12].e="🐕";
 var START=[[0,292055],[1,3764],[0,99103],[2,228194],[3,58862],[4,66269],[5,86113],[6,92443],[7,184550],[8,110655],[9,333432],[10,130698],[11,291808],[12,576131],[13,36003]];
 var STAR_RATE=0.0075; // сколько GRAM «стоит» 1 звезда (для оценки подарков из магазина звёзд)
-var PRICE_URL="",EDGE=0.80,C=2*Math.PI*80;
+var PRICE_URL="",EDGE=1.0,C=2*Math.PI*80;
 var WITHDRAW_FEE=0.4; // цена вывода подарка в GRAM (сервер сообщает своё значение)
 var API_URL=""; // адрес твоего сервера, например "https://giftup.example.com". Пусто = демо без сервера
 var tg=window.Telegram&&window.Telegram.WebApp,usr=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user;
