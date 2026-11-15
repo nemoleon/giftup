@@ -40,7 +40,7 @@ TRUST_PROXY = os.environ.get("TRUST_PROXY") == "1"              # =1, если �
 IP_LIMIT = int(os.environ.get("IP_LIMIT", "90"))                # запросов в минуту с одного IP
 # ---------- бесплатный NFT-кейс ----------
 CASE_CHANNEL = os.environ.get("CASE_CHANNEL", "@giftupnow")        # канал, на который нужно подписаться (бот должен быть в нём админом, иначе подписку не проверить)
-CASE_NAMES = [x.strip() for x in os.environ.get("CASE_NAMES", "Xmas Stocking,Lol Pop,Bow Tie").split(",") if x.strip()]   # из каких NFT (по названию) выпадает приз
+CASE_NAMES = [x.strip() for x in os.environ.get("CASE_NAMES", "Spring Basket,Lol Pop,Bow Tie").split(",") if x.strip()]   # из каких NFT (по названию) выпадает приз
 CASE_NEED = int(os.environ.get("CASE_NEED", "3"))                  # сколько друзей с Premium нужно позвать
 CASE_TTL_H = int(os.environ.get("CASE_TTL_H", "24"))               # сколько часов даётся на друзей, потом заявка сгорает (и можно крутить снова)
 CASE_COOLDOWN_H = 24                                                # крутить кейс можно раз в 24 часа
@@ -477,7 +477,8 @@ def case_info(c, uid):
     for r in c.execute("select type, count(*) n from gifts where status='house' and type>=0 group by type"): cnt[r["type"]] = r["n"]
     items = []
     for nm in CASE_NAMES:
-        t = next((i for i, x in enumerate(CAT) if (x.get("key") or x.get("name") or "").strip() == nm), -1)
+        cand = [i for i, x in enumerate(CAT) if (x.get("key") or x.get("name") or "").strip() == nm]
+        t = next((i for i in cand if cnt.get(i) and is_priced(i)), next((i for i in cand if is_priced(i)), cand[0] if cand else -1))
         items.append({"n": nm, "t": t, "v": (CAT[t].get("price") or 0) if t >= 0 else 0, "c": cnt.get(t, 0) if t >= 0 else 0, "im": case_img(c, t) if t >= 0 else ""})
     my = None
     r = c.execute("select status, ts, gift, gid from case_open where user=?", (uid,)).fetchone()
@@ -979,6 +980,8 @@ def api_case_spin(x_init_data: str = Header("")):
             return fail(c, "На сегодня кейсы закончились, загляните завтра")
         pool = sorted({i for i in range(len(CAT)) if case_names_of(i) in CASE_NAMES})   # витрина: призы показываем всегда, наличие проверяется при выдаче
         if not pool: return fail(c, "Кейс временно недоступен")
+        have = {r["type"] for r in c.execute("select distinct type from gifts where status='house' and type>=0")}
+        pool = [i for i in pool if i in have and is_priced(i)] or [i for i in pool if is_priced(i)] or pool     # приоритет: оценённые и те, что есть на складе
         t = secrets.choice(pool)  # поровну между типами; подарок не бронируется: кто первым выполнит условия, тот и заберёт
         c.execute("insert into case_open(user,gift,ts,status) values(?,?,?,'pending')", (uid, t, int(time.time())))
         cr = case_credit(c, uid, premium and has_name)   # засчитываем только аккаунты с ником и Telegram Premium
