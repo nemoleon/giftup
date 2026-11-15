@@ -1047,14 +1047,21 @@ def api_case_share(x_init_data: str = Header("")):
     c = db()
     try:
         r = c.execute("select status, gift, gid from case_open where user=?", (uid,)).fetchone()
-        if not r or r["status"] == "lost" or not r["gid"]: return {"ok": False, "error": "Нет выпавшего NFT"}
-        g = c.execute("select number from gifts where id=?", (r["gid"],)).fetchone()
+        if not r or r["status"] == "lost": return {"ok": False, "error": "Нет выпавшего NFT"}
         t = r["gift"]
-        if not g or not g["number"] or not (0 <= t < len(CAT)): return {"ok": False, "error": "Нет данных о подарке"}
+        if not (0 <= t < len(CAT)): return {"ok": False, "error": "Нет данных о подарке"}
+        no = 0
+        if r["gid"]:
+            g = c.execute("select number from gifts where id=?", (r["gid"],)).fetchone(); no = (g["number"] if g else 0) or 0
+        if no: sample = no
+        else:      # пока подарок не закреплён за игроком — для превью берём любой такой же NFT со склада
+            g = c.execute("select number from gifts where type=? and status='house' and number>0 order by id desc limit 1", (t,)).fetchone()
+            sample = g["number"] if g else 0
+        if not sample: return {"ok": False, "error": "Нет подарка для превью"}
         base = CAT[t].get("key") or CAT[t].get("name") or ""
-        slug = nft_slug(base, g["number"]); link = case_link(uid)
+        slug = nft_slug(base, sample); link = case_link(uid)
     finally: c.close()
-    nm = f"{base} #{g['number']}"
+    nm = f"{base} #{no}" if no else base
     txt = (f"🎁 Мне выпал NFT {nm} в бесплатном кейсе GiftUp Now.\n\n"
            f"Чтобы его забрать, нужно позвать {CASE_NEED} друзей с Telegram Premium: заходи и открывай кейс, так ты мне поможешь — и сам сможешь выиграть NFT.")
     res = {"type": "article", "id": f"cs{uid}{int(time.time())}", "title": f"Выпал {nm}",
