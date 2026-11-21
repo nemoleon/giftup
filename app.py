@@ -292,34 +292,42 @@ def ga_floor(name, model):
     v = _ga_floor_raw(name, (str(model)[:-len(BLACK_SFX)] if bd else model))
     return max(v or 0, BLACK_PRICE) if bd else v
 
+def _gn(x): return re.sub(r"[^a-z0-9]", "", str(x or "").lower())      # сравнение названий без регистра, апострофов (' и ’) и пробелов
+
 def _ga_floor_raw(name, model):
-    """Цена модели (минимум по маркетам) из Gift Asset API, TON. Нет данных -> None. Результат по коллекции кэшируется на 15 минут."""
+    """Цена модели (минимум по маркетам) из Gift Asset API, TON. Нет данных -> None. Результат по коллекции кэшируется на несколько минут.
+    Названия сравниваются без апострофов и регистра (Khabib’s Papakha = Khabib's Papakha)."""
     if not GAKEY or not name: return None
-    key = name.lower()
+    key = _gn(name)
+    d = None
     with _ga_lock:
         hit_ = _ga["cache"].get(key)
         if hit_ and time.time() - hit_[0] < 240: d = hit_[1]
         else:
-            wait = 1.3 - (time.time() - _ga["t"])
-            if wait > 0: time.sleep(wait)
-            r = httpx.get("https://giftasset.gifts/api/v1/gifts/get" + chr(95) + "unique" + chr(95) + "gifts" + chr(95) + "price" + chr(95) + "list",
-                          params={"collection" + chr(95) + "name": name}, headers={"X-Api-Key": GAKEY}, timeout=20)
-            _ga["t"] = time.time()
-            if r.status_code != 200:
-                if time.time() - _ga["warn"] > 600: _ga["warn"] = time.time(); print("giftasset:", r.status_code, r.text[:160], flush=True)
-                return None
-            d = r.json(); _ga["cache"][key] = (time.time(), d)
+            for nm in dict.fromkeys([name, name.replace("’", "'"), name.replace("'", "’"), name.replace("’", "").replace("'", "")]):
+                wait = 1.3 - (time.time() - _ga["t"])
+                if wait > 0: time.sleep(wait)
+                r = httpx.get("https://giftasset.gifts/api/v1/gifts/get" + chr(95) + "unique" + chr(95) + "gifts" + chr(95) + "price" + chr(95) + "list",
+                              params={"collection" + chr(95) + "name": nm}, headers={"X-Api-Key": GAKEY}, timeout=20)
+                _ga["t"] = time.time()
+                if r.status_code != 200:
+                    if time.time() - _ga["warn"] > 600: _ga["warn"] = time.time(); print("giftasset:", r.status_code, r.text[:160], flush=True)
+                    continue
+                d = r.json()
+                if any(_gn(k) == key for k in (d.get("models" + chr(95) + "prices") or {})) or any(_gn(k) == key for k in (d.get("collection" + chr(95) + "floors") or {})): break
+            if d is None: return None
+            _ga["cache"][key] = (time.time(), d)
     def best(o):
         v = [float(x) for k, x in (o or {}).items() if k in ("getgems", "mrkt", "portals", "tonnel") and isinstance(x, (int, float)) and x > 0]
         return min(v) if v else None
     mp = (d.get("models" + chr(95) + "prices") or {})
-    col = next((v for k, v in mp.items() if k.lower() == key), None) or {}
+    col = next((v for k, v in mp.items() if _gn(k) == key), None) or {}
     if model:
-        m = next((v for k, v in (col.get("models") or {}).items() if k.lower() == str(model).lower()), None)
+        m = next((v for k, v in (col.get("models") or {}).items() if _gn(k) == _gn(model)), None)
         v = best(m)
         if v: return round(v, 2)
     cf = (d.get("collection" + chr(95) + "floors") or {})
-    v = best(next((x for k, x in cf.items() if k.lower() == key), None))
+    v = best(next((x for k, x in cf.items() if _gn(k) == key), None))
     return round(v, 2) if v else None
 
 def auto_price(t, base, number):
@@ -1437,6 +1445,16 @@ def api_price(body: dict, x_admin_key: str = Header("")):
                     finally: c.close()
     return {"ok": bool(done), "updated": done}
 
+@app.get("/api/admin/price_debug")
+def api_price_debug(name: str, number: int = 0, model: str = "", x_admin_key: str = Header("")):
+    """Диагностика цены: что отвечает каждый источник для этого NFT (Gift Asset, маркет Telegram, «ценность»)."""
+    if not ADMIN_KEY or not hmac.compare_digest(x_admin_key, ADMIN_KEY): raise HTTPException(403)
+    out = {"gakey": bool(GAKEY), "telethon": bool(_ub["cl"]), "slug": nft_slug(name, number) if number else None}
+    for k, fn in (("giftasset", lambda: ga_floor(name, model)), ("market", lambda: tg_floor_ton(out["slug"]) if out["slug"] else "нужен number"), ("value", lambda: tg_value_ton(out["slug"]) if out["slug"] else "нужен number")):
+        try: out[k] = fn()
+        except Exception as e: out[k] = "ошибка: " + str(e)[:200]
+    return out
+
 @app.get("/api/admin/check")
 def api_check(x_admin_key: str = Header("")):
     """Диагностика: подключён ли бот к аккаунту и какие права есть."""
@@ -1793,6 +1811,10 @@ def ga_loop():
                         # рынок не дал цену модели (редкий NFT без лотов): после 2 кругов берём цену коллекции из каталога, как только появятся данные рынка — она заменится
                         x["miss"] = x.get("miss", 0) + 1
                         fb = next((y["price"] for y in CAT if not y.get("custom") and not y.get("nw") and (y.get("key") or "").lower() == (x.get("key") or "").lower() and y.get("price")), None)
+                        if not fb and x["miss"] >= 3:
+                            # совсем редкий NFT: ни рынка, ни каталога, ни «ценности» — автооценка по медиане цен каталога (заменится, как только появятся реальные данные)
+                            ps = sorted(y["price"] for y in CAT if not y.get("custom") and y.get("price"))
+                            if ps: fb = ps[len(ps) // 2]
                         if fb and x["miss"] >= 2:
                             if str(x.get("model") or "").endswith(BLACK_SFX): fb = max(fb, BLACK_PRICE)
                             with _cat_lock: x["price"] = fb; x["vp"] = True; x["priced"] = True
@@ -1800,7 +1822,7 @@ def ga_loop():
                             try: c.execute("update custom set price=? where id=? and fixed=0", (fb, x["custom"]))
                             finally: c.close()
                             print(f"[{stamp()}] 💰 цена {x['name']} / {x.get('model')} = {fb} GRAM (рынок данных не дал — взята цена коллекции из каталога)", flush=True)
-                        elif x["miss"] in (2, 12): print(f"[{stamp()}] ⚠️ цену {x['name']} / {x.get('model')} определить не удалось (нет данных на рынке и в каталоге) — задай вручную: /api/admin/price", flush=True)
+                        elif x["miss"] in (2, 12): print(f"[{stamp()}] ⚠️ цену {x['name']} / {x.get('model')} определить не удалось (нет данных на рынке и в каталоге) — диагностика: /api/admin/price_debug?name=...&number=...", flush=True)
                     continue
                 old = x.get("price")
                 with _cat_lock: x["price"] = v; x["vp"] = True; x["priced"] = True
