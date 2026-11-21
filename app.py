@@ -573,7 +573,7 @@ def case_info(c, uid):
 
 _feed = {"ts": 0, "v": []}
 def recent_feed(c):
-    """Лента «Последние апгрейды»: слева самый дорогой выигрыш за всё время (с короной), правее — 4 последних выигрыша по времени (новые появляются справа). Без данных игроков."""
+    """Лента «Последние апгрейды»: слева самый дорогой выигрыш за всё время (с короной), правее — 10 последних выигрышей, самый свежий сразу после короны. Без данных игроков."""
     if time.time() - _feed["ts"] < 8: return _feed["v"]
     q = ("select h.id hid, h.want t, h.no, h.ch, h.price pr, (select g.img from gifts g where g.type=h.want and g.number=h.no and h.no>0 order by g.id desc limit 1) im "
          "from hist h where h.win=1 and h.want>=0 ")
@@ -585,9 +585,9 @@ def recent_feed(c):
     if best:
         x = row(best, 1)
         if x: v.append(x)
-        rest = c.execute(q + "and h.id<>? order by h.id desc limit 4", (best["hid"],)).fetchall()
+        rest = c.execute(q + "and h.id<>? order by h.id desc limit 10", (best["hid"],)).fetchall()
     else: rest = []
-    for r in reversed(rest):      # от старых к новым: самый новый — справа
+    for r in rest:      # сразу после короны — самый свежий, дальше вправо всё старее (до 10)
         x = row(r)
         if x: v.append(x)
     _feed["ts"] = time.time(); _feed["v"] = v
