@@ -37,7 +37,12 @@ button{font:inherit;color:inherit;border:0;cursor:pointer}
 .hs{margin:0;padding:4px 0;border-radius:14px;text-align:center;font-weight:500;font-size:11px;line-height:14px}.hs.w{background:#173226;color:#58c978}.hs.l{background:#3a1d22;color:#ec5a5a}.hs.o{background:#3a3112;color:#f2c230}
 .hp{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:14px;color:var(--mut);font-weight:600}.hp button{width:40px;height:40px;border-radius:50%;background:var(--cd2);color:#fff;font-size:22px}.hp button[disabled]{opacity:.3}
 .hr{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1f1f25}.hr img{width:44px;height:44px;object-fit:contain;border-radius:10px}.hr .hm{flex:1}.hr small{color:var(--mut);display:block}.ok{color:#3ddc84}.no{color:#ff5470}
-#dm{position:fixed;inset:0;z-index:12;background:#0c0c0f;display:none;flex-direction:column;padding:calc(16px + var(--ti)) 14px 20px;overflow:auto}#dm.open{display:flex}
+#dm{position:fixed;inset:0;z-index:16;background:#0c0c0f;display:none;flex-direction:column;padding:calc(16px + var(--ti)) 14px 20px;overflow:auto}#dm.open{display:flex}
+#dm.mn{background:rgba(6,5,8,.62);-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);padding:0;justify-content:flex-end;overflow:hidden;animation:dmf .22s ease}
+#dm.mn .dh{padding:0 14px;margin-bottom:12px;animation:dmu .32s cubic-bezier(.2,.9,.25,1)}
+#dm.mn #dmb{background:#131217;border-radius:30px 30px 0 0;padding:6px 12px calc(20px + env(safe-area-inset-bottom,0px));animation:dmu .32s cubic-bezier(.2,.9,.25,1);max-height:52vh;overflow:auto}
+#dm.mn .dc{background:none;padding:14px 4px 0}#dm.mn .dc h2{font-size:24px;margin:2px 0 14px 6px}
+@keyframes dmu{from{transform:translateY(60%);opacity:0}to{transform:none;opacity:1}}@keyframes dmf{from{opacity:0}to{opacity:1}}
 .dh{display:flex;align-items:center;gap:8px;margin-bottom:14px}.dh .dt{flex:1;display:flex;align-items:center;gap:10px;background:#17121a;border-radius:30px;padding:8px 18px 8px 8px;font-weight:600;font-size:17px;height:52px}
 .dh .dr{width:52px;height:52px;border-radius:50%;background:#17121a;color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:20px}
 .dh .ic2{width:36px;height:36px;border-radius:50%;background:#241a22;display:flex;align-items:center;justify-content:center;flex:none}
@@ -553,7 +558,7 @@ document.addEventListener("focusout",function(e){if(e.target.classList&&e.target
 chipsRender();
 $("set").onclick=stOpen;
 var STAR_SVG='<svg viewBox="0 0 24 24" width="__S__" height="__S__" fill="#ffd54a"><path d="M12 2.4l2.9 6 6.5.9-4.7 4.6 1.1 6.5L12 17.3l-5.8 3.1 1.1-6.5L2.6 9.3l6.5-.9z" stroke="#ffd54a" stroke-width="1.6" stroke-linejoin="round"/></svg>',GIFT_SVG='<svg viewBox="0 0 24 24" width="30" height="30" fill="#ffd54a"><path d="M9 3.2c1.2 0 2.3.7 3 1.8.7-1.1 1.8-1.8 3-1.8a2.4 2.4 0 0 1 1.5 4.3H20a1.5 1.5 0 0 1 1.5 1.5v2.2a.8.8 0 0 1-.8.8H3.3a.8.8 0 0 1-.8-.8V9A1.5 1.5 0 0 1 4 7.5h3.5A2.4 2.4 0 0 1 9 3.2zM3.9 13.5h7.3v7.3H6.4a2.5 2.5 0 0 1-2.5-2.5zm9 0h7.3v4.8a2.5 2.5 0 0 1-2.5 2.5h-4.8z"/></svg>',SPG=125,SMIN=15,dmv="";
-function dmHead(title,ico,back){$("dmh").innerHTML=(back?'<button class="dr" id="dmback">‹</button>':'')+'<div class="dt"><span class="ic2">'+ico+'</span>'+title+'</div><button class="dr" id="dmx">✕</button>'}
+function dmHead(title,ico,back){$("dm").classList.toggle("mn",title==="Пополнение"&&!back);$("dmh").innerHTML=(back?'<button class="dr" id="dmback">‹</button>':'')+'<div class="dt"><span class="ic2">'+ico+'</span>'+title+'</div><button class="dr" id="dmx">✕</button>'}
 function dmMenu(){dmv="menu";dmHead("Пополнение",'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 18h8M6 18v-8"/></svg>',false);
   $("dmb").innerHTML='<div class="dc"><h2>Способ пополнения</h2><button class="dr2" data-m="stars"><span class="ci">'+STAR_SVG.replace(/__S__/g,30)+'</span><span class="l">Stars</span><i>›</i></button><button class="dr2" data-m="gifts"><span class="ci">'+GIFT_SVG+'</span><span class="l">Gifts</span><i>›</i></button><button class="dr2" data-m="gram"><span class="ci" style="background:#ff4fa0"><span class="gem" style="background-color:transparent;width:30px;height:30px"></span></span><span class="l">Gram</span><i>›</i></button></div>'}
 function dmStars(){dmv="stars";dmHead("Stars",STAR_SVG.replace(/__S__/g,20),true);
@@ -562,9 +567,9 @@ function dmStars(){dmv="stars";dmHead("Stars",STAR_SVG.replace(/__S__/g,20),true
 function dsUpd(){var n=parseInt($("dsn").value||"0",10)||0;$("dsg").textContent=(n/SPG).toFixed(2).replace(".",",")+" GRAM";$("dsb").disabled=n<SMIN;$("dsb").textContent=n&&n<SMIN?"Минимум "+SMIN+" ★":"Купить"}
 function dmGramMenu(){dmv="gm";dmHead("Gram",'<span class="gem" style="width:22px;height:22px"></span>',true);
   $("dmb").innerHTML='<div class="dc"><h2>Способ пополнения</h2><button class="dr2" data-m="wallet"><span class="ci" style="background:#10161f"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M12 3l8 5-8 13L4 8z" fill="#4aa3ff"/><path d="M12 3l8 5-8 3z" fill="#7cc0ff"/><path d="M12 11l8-3-8 13z" fill="#2f78c4"/></svg></span><span class="l">Ваш кошелёк</span><i>›</i></button></div>'}
-function dmOpen(){dmMenu();$("dm").className="open"}
+function dmOpen(){$("dm").className="open";dmMenu()}
 function dmClose(){$("dm").className="";dmv=""}
-document.addEventListener("click",function(e){var t=e.target.closest&&e.target.closest("#dm button");if(!t)return;
+document.addEventListener("click",function(e){if(e.target&&e.target.id==="dm"&&$("dm").classList.contains("mn")){dmClose();return}var t=e.target.closest&&e.target.closest("#dm button");if(!t)return;
   if(t.id==="dmx"){dmClose();return}
   if(t.id==="dmback"){dmMenu();return}
   if(t.dataset.m==="wallet"){dmGram();return}
@@ -793,7 +798,7 @@ function csCard(x){var nm=csNm(x);return '<div class="nc" style="'+csBg(nm)+'"><
 function csReel(x){var nm=csNm(x);return '<div class="csc nc" style="'+csBg(nm)+'"><img class="ncm" src="'+csReg(x)+'" alt=""><div class="ncp"><b>'+nm+'</b></div></div>'}
 function csThumb(m){var src=m.mim?(API_URL||"")+m.mim:csReg(m);return{st:"background:#1a1a1f;border-radius:30px",h:'<img class="ncm" src="'+src+'" alt="">'}}
 function csPanel(){var C=csC(),m=csMy(),e=$("cspan");if(!m){e.innerHTML="";return}var th=csThumb(m),nm=csNm(m),pr=csPrice(m),seg="";for(var i=0;i<C.need;i++)seg+='<i class="'+(i<C.fr?"on":"")+'"></i>';
-  var note=m.st==="done"?"Все друзья засчитаны, подарок в инвентаре.":(m.st==="lost"?"Этот NFT уже забрал другой игрок. Откройте кейс снова.":"Друг засчитается, когда откроет этот кейс. Не успеют — подарок сгорит через <span class=cstm></span>");
+  var note=m.st==="done"?"Все друзья засчитаны, подарок в инвентаре.":(m.st==="lost"?"Этот NFT уже забрал другой игрок. Откройте кейс снова.":"Пригласи "+C.need+" друзей, чтобы вывести");
   var btn=m.st==="pending"?'<button class="csgo" id="cspinv">Позвать друзей</button><div class="cslk"><span>'+C.link+'</span><button id="cspo" aria-label="Открыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button><button id="cspc" aria-label="Копировать"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button></div>':"";
   e.innerHTML='<div class="cspn"><div class="csir" id="cspim"><div class="im nc" style="'+th.st+'">'+th.h+'</div><div><b>'+nm+(m.m?" · "+m.m:"")+'</b><small>Подарок из коллекции</small><span class="cspp w" style="font-size:16px;padding:5px 14px 5px 6px"><span class="gem" style="width:20px;height:20px"></span><span>'+f(pr,pr<10?2:1)+'</span></span></div></div>'
   +'<div style="display:flex;justify-content:space-between;color:var(--mut);font-size:15px;margin:6px 4px 0"><span>Засчитано друзей</span><b style="color:#fff">'+C.fr+' / '+C.need+'</b></div><div class="csseg">'+seg+'</div><div class="csnote">'+note+'</div>'+btn+'</div>';csTick()}
@@ -831,9 +836,9 @@ function csInvite(){var C=csC(),m=C.my;if(!m)return;var seg="";for(var i=0;i<C.n
   var th=csThumb(m);$("csii").className="im nc";$("csii").setAttribute("style",th.st);$("csii").innerHTML=th.h;$("csin").textContent=csNm(m);var pr=csPrice(m);$("csip").textContent=f(pr,pr<10?2:1);$("cslk").textContent=C.link;
   $("csinote").innerHTML=m.st==="done"?"Все друзья засчитаны, подарок в инвентаре.":"Друг засчитается, когда откроет этот кейс по вашей ссылке (нужны @username и Telegram Premium). Не успеют — заявка сгорит через <span class=cstm></span>";csTick();$("csfr").style.display=API_URL?"none":"";$("csi").classList.add("open")}
 function csSpin(){var b=$("cschk");b.disabled=true;$("csserr").textContent="";
-  if(!API_URL){var C=csC(),w=C.items[Math.floor(Math.random()*C.items.length)];C.my={st:"pending",t:w.t,no:(CSK[w.n]&&CSK[w.n].no)||Math.floor(1000+Math.random()*90000),im:"",n:w.n,exp:Math.floor(Date.now()/1000)+86400};C.fr=0;csNote=[];b.disabled=false;$("kzs").classList.remove("open");csAnimate(C.my,function(){csHome();csResult()});return}api("/api/case/spin",{}).then(function(r){b.disabled=false;
+  if(!API_URL){var C=csC(),w=C.items[Math.floor(Math.random()*C.items.length)];C.my={st:"pending",t:w.t,no:(CSK[w.n]&&CSK[w.n].no)||Math.floor(1000+Math.random()*90000),im:"",n:w.n,exp:Math.floor(Date.now()/1000)+86400};C.fr=0;csNote=[];b.disabled=false;$("kzs").classList.remove("open");csAnimate(C.my,function(){csHome()});return}api("/api/case/spin",{}).then(function(r){b.disabled=false;
   if(!r||!r.ok){$("csserr").textContent=(r&&r.error)||"Не получилось, попробуйте ещё раз";if(r&&!r.step)$("kzs").classList.remove("open"),$("cserr").textContent=r.error||"";return}
-  csNote=r.note||[];applyState(r.state);render();grid();$("kzs").classList.remove("open");csAnimate(r.state.case.my,function(){csHome();csResult()})}).catch(function(){b.disabled=false;$("csserr").textContent="Нет связи с сервером"})}
+  csNote=r.note||[];applyState(r.state);render();grid();$("kzs").classList.remove("open");csAnimate(r.state.case.my,function(){csHome()})}).catch(function(){b.disabled=false;$("csserr").textContent="Нет связи с сервером"})}
 $("n0").onclick=function(){csOpen()};
 document.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("button"):null;if(b&&hap&&tg&&tg.HapticFeedback){try{tg.HapticFeedback.impactOccurred("light")}catch(x){}}},true);
 $("kzx").onclick=csClose;$("csinf").onclick=function(){$("csab").classList.add("open")};$("csabx").onclick=function(){$("csab").classList.remove("open")};
