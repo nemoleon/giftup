@@ -565,13 +565,23 @@ def case_info(c, uid):
 
 _feed = {"ts": 0, "v": []}
 def recent_feed(c):
-    """Последние 5 реальных выигрышей в бусте по всему приложению (без данных игроков) — лента «Последние апгрейды» сверху."""
+    """Лента «Последние апгрейды»: слева самый дорогой выигрыш за всё время (с короной), правее — 4 последних выигрыша по времени (новые появляются справа). Без данных игроков."""
     if time.time() - _feed["ts"] < 8: return _feed["v"]
+    q = ("select h.id hid, h.want t, h.no, h.ch, h.price pr, (select g.img from gifts g where g.type=h.want and g.number=h.no and h.no>0 order by g.id desc limit 1) im "
+         "from hist h where h.win=1 and h.want>=0 ")
+    def row(r, b=0):
+        if not (0 <= r["t"] < len(CAT)): return None
+        return {"t": r["t"], "no": r["no"], "ch": round(r["ch"] or 0), "pr": r["pr"] or CAT[r["t"]]["price"], "im": r["im"] or "", "b": b}
     v = []
-    for r in c.execute("select h.want t, h.no, h.ch, h.price pr, (select g.img from gifts g where g.type=h.want and g.number=h.no and h.no>0 order by g.id desc limit 1) im "
-                       "from hist h where h.win=1 and h.want>=0 order by h.id desc limit 5"):
-        if not (0 <= r["t"] < len(CAT)): continue
-        v.append({"t": r["t"], "no": r["no"], "ch": round(r["ch"] or 0), "pr": r["pr"] or CAT[r["t"]]["price"], "im": r["im"] or ""})
+    best = c.execute(q + "order by h.price desc, h.id desc limit 1").fetchone()
+    if best:
+        x = row(best, 1)
+        if x: v.append(x)
+        rest = c.execute(q + "and h.id<>? order by h.id desc limit 4", (best["hid"],)).fetchall()
+    else: rest = []
+    for r in reversed(rest):      # от старых к новым: самый новый — справа
+        x = row(r)
+        if x: v.append(x)
     _feed["ts"] = time.time(); _feed["v"] = v
     return v
 
