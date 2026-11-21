@@ -140,6 +140,8 @@ def init_db():
     except Exception: pass
     try: c.execute("alter table gifts add column mimg text default ''")   # картинка только модели NFT (без фона)
     except Exception: pass
+    try: c.execute("alter table gifts add column free integer default 0")   # 1 = выигран в бесплатном кейсе: вывод без платы
+    except Exception: pass
     for ddl in ("alter table users add column ref_by integer default 0", "alter table users add column ref_earn real default 0"):
         try: c.execute(ddl)
         except Exception: pass
@@ -488,7 +490,7 @@ def case_finish(c, uid):
     if not g:
         c.execute("update case_open set status='lost' where user=?", (uid,))
         return "lost"
-    if c.execute("update gifts set status='held', owner=? where id=? and status='house'", (uid, g["id"])).rowcount != 1: return False
+    if c.execute("update gifts set status='held', owner=?, free=1 where id=? and status='house'", (uid, g["id"])).rowcount != 1: return False
     c.execute("update case_open set status='done', gid=? where user=?", (g["id"], uid))
     return "done"
 
@@ -562,7 +564,7 @@ def case_info(c, uid):
 def state(c, uid):
     with _lock: _seen[uid] = time.time()
     u = c.execute("select * from users where id=?", (uid,)).fetchone()
-    inv = [{"id": r["id"], "t": r["type"], "no": r["number"], "im": r["img"] or "", "pr": 1 if is_priced(r["type"]) else 0} for r in
+    inv = [{"id": r["id"], "t": r["type"], "no": r["number"], "im": r["img"] or "", "pr": 1 if is_priced(r["type"]) else 0, "fr": 1 if r["free"] else 0} for r in
            c.execute("select * from gifts where owner=? and status='held' and type>=0 order by id desc", (uid,))]
     stock = {r["type"]: r["n"] for r in c.execute(
         "select type, count(*) n from gifts where status='house' and type>=0 group by type")}
@@ -1010,11 +1012,12 @@ def api_withdraw(body: dict, x_init_data: str = Header("")):
         if g["type"] >= 0 and CAT[g["type"]].get("nw"):
             c.execute("rollback")
             c.close(); return withdraw_regular(uid, g)
-        if u["bal"] + 1e-9 < WITHDRAW_FEE: return fail(c, f"Для вывода нужно {WITHDRAW_FEE} GRAM на балансе")
-        c.execute("update users set bal=bal-? where id=?", (WITHDRAW_FEE, uid))
+        fee = 0.0 if g["free"] else WITHDRAW_FEE     # приз из бесплатного кейса выводится бесплатно
+        if u["bal"] + 1e-9 < fee: return fail(c, f"Для вывода нужно {WITHDRAW_FEE} GRAM на балансе")
+        c.execute("update users set bal=bal-? where id=?", (fee, uid))
         c.execute("update gifts set status='out' where id=?", (g["id"],))
         c.execute("insert into hist(user,ts,want,no,win,ch,price) values(?,?,?,?,2,0,?)", (uid, int(time.time()), g["type"], g["number"], CAT[g["type"]]["price"] if g["type"] >= 0 else 0))
-        c.execute("insert into wd(gift,user,fee) values(?,?,?)", (g["id"], uid, WITHDRAW_FEE))
+        c.execute("insert into wd(gift,user,fee) values(?,?,?)", (g["id"], uid, fee))
         st = state(c, uid); c.execute("commit")
         return {"ok": True, "state": st}
     except Exception:
@@ -1751,7 +1754,20 @@ def ga_loop():
             for x in list(CAT):
                 if not x.get("custom") or x.get("fixed"): continue
                 v = reprice_one(x)
-                if v is None: continue
+                if v is None:
+                    if not x.get("priced"):
+                        # рынок не дал цену модели (редкий NFT без лотов): после 2 кругов берём цену коллекции из каталога, как только появятся данные рынка — она заменится
+                        x["miss"] = x.get("miss", 0) + 1
+                        fb = next((y["price"] for y in CAT if not y.get("custom") and not y.get("nw") and (y.get("key") or "").lower() == (x.get("key") or "").lower() and y.get("price")), None)
+                        if fb and x["miss"] >= 2:
+                            if str(x.get("model") or "").endswith(BLACK_SFX): fb = max(fb, BLACK_PRICE)
+                            with _cat_lock: x["price"] = fb; x["vp"] = True; x["priced"] = True
+                            c = db()
+                            try: c.execute("update custom set price=? where id=? and fixed=0", (fb, x["custom"]))
+                            finally: c.close()
+                            print(f"[{stamp()}] 💰 цена {x['name']} / {x.get('model')} = {fb} GRAM (рынок данных не дал — взята цена коллекции из каталога)", flush=True)
+                        elif x["miss"] in (2, 12): print(f"[{stamp()}] ⚠️ цену {x['name']} / {x.get('model')} определить не удалось (нет данных на рынке и в каталоге) — задай вручную: /api/admin/price", flush=True)
+                    continue
                 old = x.get("price")
                 with _cat_lock: x["price"] = v; x["vp"] = True; x["priced"] = True
                 if old != v or not x.get("psrc_saved"):
@@ -1770,4 +1786,4 @@ def startup():
     threading.Thread(target=withdraw_loop, daemon=True).start()
     threading.Thread(target=deposit_loop, daemon=True).start()
     if os.environ.get("PRICE_SYNC") == "1": threading.Thread(target=price_loop, daemon=True).start()
-    if GAKEY or TG_SESSION: threading.Thread(target=ga_loop, daemon=True).start()
+    threading.Thread(target=ga_loop, daemon=True).start()

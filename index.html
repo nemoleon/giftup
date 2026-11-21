@@ -133,6 +133,7 @@ input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;bac
 .tbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .prc{flex:1;min-width:0;height:44px;border-radius:22px;background:var(--cd2);display:flex;align-items:center;padding:0 10px;gap:6px}.plb{display:flex;align-items:center;gap:6px;color:var(--mut);font-size:15px;font-weight:600;flex:none}.pin{flex:1;min-width:0;height:34px;border-radius:17px;border:1.5px solid #3a2c35;display:flex;align-items:center;padding:0 6px;gap:4px}.prc{padding:0 6px 0 10px;gap:8px}.prc input{flex:1;min-width:0;width:0;background:none;border:0;outline:0;color:var(--tx);font:inherit;font-size:15px;text-align:center}.prc input::placeholder{color:var(--mut)}.prc i{width:1px;height:18px;background:#3a2c35;flex:none}
 .srt.shcb{position:relative;background:var(--ac);color:#000}.shcb sup{position:absolute;top:2px;right:5px;font-size:11px;font-weight:800;color:#000}
+.cd.np{opacity:.7}.cd.np .pb{color:var(--mut)}
 .cd.sc2.cart{border-color:var(--ac)}.cd.sc2.cart::after{content:"";position:absolute;inset:0;background:rgba(255,79,160,.38);z-index:1}.cd.sc2 .ck{display:none;position:absolute;left:50%;top:42%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--ac);z-index:2;align-items:center;justify-content:center}.cd.sc2.cart .ck{display:flex}.cd.sc2 .ck svg{width:26px;height:26px}.cd.sc2.np{opacity:.7}.cd.sc2.np .pb{color:var(--mut)}
 .shp{display:flex;align-items:center;gap:8px;margin-top:10px}.shp .pgb{width:46px;height:46px;border-radius:50%;background:var(--cd2);color:var(--tx);font-size:22px;display:flex;align-items:center;justify-content:center;flex:none}.shp .pgb:disabled{opacity:.35}.shp .pgt{color:var(--tx);font-weight:600;white-space:nowrap}
 .shtot{height:46px;border-radius:23px;background:var(--ac);color:#000;font-weight:800;font-size:17px;padding:0 14px;display:flex;align-items:center;gap:8px;position:relative;flex:none}.shtot .gem{width:22px;height:22px}.shtot:disabled{background:var(--cd2);color:var(--mut)}.shtot sup{font-size:11px;position:relative;top:-6px;margin-left:-4px}
@@ -428,6 +429,7 @@ function render(){
   refRender();$("pb").textContent=f(S.bal);$("po").textContent=f(S.wdn||0);markDis();$("pc").textContent=S.boosts;$("best").textContent=f(S.best);renderProf();
 }
 function card(i,sub,on,attr,img){return '<button class="cd'+(on?' on':'')+'" '+attr+' style="background-image:url('+(img||IM[i])+')"><span class="pb">'+gem()+(T[i].ok?'':'≈')+f(T[i].v,T[i].v<10?2:(T[i].v<100?1:0))+'</span><div class="nm">'+T[i].n+'<small>'+sub+'</small></div></button>'}
+function cardNP(i,sub,attr,img){return '<button class="cd np" '+attr+' style="background-image:url('+(img||IM[i])+')"><span class="pb">На оценке</span><div class="nm">'+T[i].n+'<small>'+sub+'</small></div></button>'}
 function scard(i){var x=T[i];return '<button class="cd sc" data-s="'+i+'" style="background-image:url('+IM[i]+')"><span class="pb"><span class="stp"></span>'+x.st+'</span><div class="nm">'+x.n+'<small>'+(x.nw?"Обычный":"Коллекция")+'</small></div></button>'}
 function avail(i){return !API_URL||!!T[i].nw||!!T[i].stock}
 function wlist(){return T.map(function(t,i){return i}).filter(avail).sort(function(a,b){return T[b].v-T[a].v})}
@@ -478,12 +480,12 @@ function grid(){
   $("m1").className=tabM==1?"on":"";$("m2").className=tabM==2?"on":"";$("sb").style.display=tabM==1?"":"none";
   [1,2].forEach(function(k){$("u"+k).className=tabU==k?"on":""});var h="";
   $("tb").style.display=(tabM==1&&tabU==1)?"":"none";var shopOn=!!API_URL&&tabM==1&&tabU==2,wishOn=tabM==2,mode=wishOn?"w":(shopOn?"s":"");$("shb").style.display=(shopOn||wishOn)?"":"none";$("shc").style.display=wishOn?"none":"";var qOn=(shopOn&&shopQon)||(wishOn&&wishQon);$("shq").style.display=qOn?"":"none";$("prc").style.display=qOn?"none":"";$("shp").style.display=(shopOn||wishOn)?"":"none";$("shs").classList.toggle("asc",!(wishOn?wishDesc:shopDesc));
-  if(mode&&mode!==curMode){curMode=mode;$("shlo").value=wishOn?wishFrom:shopFrom;$("shhi").value=wishOn?wishTo:shopTo;$("shqi").value=wishOn?wishQ:shopQ}var invSum=0;S.inv.forEach(function(x){if(T[x.t])invSum+=T[x.t].v});$("tn").textContent=f(invSum,invSum<100?2:1);$("srt").classList.toggle("asc",!sortDesc);
+  if(mode&&mode!==curMode){curMode=mode;$("shlo").value=wishOn?wishFrom:shopFrom;$("shhi").value=wishOn?wishTo:shopTo;$("shqi").value=wishOn?wishQ:shopQ}var invSum=0;S.inv.forEach(function(x){if(T[x.t]&&x.pr!==0)invSum+=T[x.t].v});$("tn").textContent=f(invSum,invSum<100?2:1);$("srt").classList.toggle("asc",!sortDesc);
   if(tabM==2){var WL=wishList(),wpages=Math.max(1,Math.ceil(WL.length/SHP));if(wishPg>=wpages)wishPg=wpages-1;if(wishPg<0)wishPg=0;
     WL.slice(wishPg*SHP,(wishPg+1)*SHP).forEach(function(e){var i=e.i;h+=e.g?card(i,"#"+e.g.no,wantG===e.g.id,'data-w="'+i+'" data-g="'+e.g.id+'" data-v="'+T[i].v+'"',gi(e.g)):card(i,T[i].nw?"Regular":"",want===i,'data-w="'+i+'" data-v="'+T[i].v+'"')});
     if(!h)h='<div class="empty" style="grid-column:1/-1">'+((S.si||[]).length||!API_URL?'Ничего не найдено':'Пока здесь нет подарков. Они появятся, когда будут в наличии.')+'</div>';wishBar(wpages)}
   else if(tabU==1){var ql=qry.trim().toLowerCase(),list=S.inv.slice().sort(function(x,y){return sortDesc?T[y.t].v-T[x.t].v:T[x.t].v-T[y.t].v}).filter(function(g){return !ql||(T[g.t].n+" "+(KEYS[g.t]||"")).toLowerCase().indexOf(ql)>=0});
-    list.forEach(function(g){h+=card(g.t,T[g.t].nw?"Обычный":"#"+g.no,sel[g.id],'data-i="'+g.id+'"',gi(g))});
+    list.forEach(function(g){h+=g.pr===0?cardNP(g.t,"#"+g.no,'data-i="'+g.id+'"',gi(g)):card(g.t,T[g.t].nw?"Обычный":"#"+g.no,sel[g.id],'data-i="'+g.id+'"',gi(g))});
     if(!S.inv.length){var gh="",gp="",GL=(S.si||[]).filter(function(x){return T[x.t]&&!T[x.t].nw}).sort(function(a,b){return T[b.t].v-T[a.t].v||a.no-b.no});
       if(GL.length){var gpn=Math.max(1,Math.ceil(GL.length/9));if(ghostPg>=gpn)ghostPg=gpn-1;if(ghostPg<0)ghostPg=0;GL.slice(ghostPg*9,ghostPg*9+9).forEach(function(x){gh+=card(x.t,"#"+x.no,false,'tabindex="-1"',gi(x))});gp='<div class="gpg"><button data-gp="-1"'+(ghostPg<=0?' disabled':'')+' aria-label="Назад">‹</button><span>'+(ghostPg+1)+' из '+gpn+'</span><button data-gp="1"'+(ghostPg>=gpn-1?' disabled':'')+' aria-label="Вперёд">›</button></div>'}
       else[14,15,16,18,19,20,21,7,12].forEach(function(i){gh+=card(i,"",false,'tabindex="-1"')});h='<div class="ghostw"><div class="gg">'+gh+'</div>'+gp+'<div class="ov"><div>Пустой инвентарь? Отправь подарки <a>@'+(S.owner||"владельцу")+'</a> и начинай буст.</div><button id="sendb">Отправить</button></div></div>'}
@@ -513,7 +515,7 @@ $("q").oninput=function(){qry=this.value;grid()};
 $("gr").onclick=function(e){
   var gpb=e.target.closest&&e.target.closest("[data-gp]");if(gpb){if(!gpb.disabled){ghostPg+=parseInt(gpb.dataset.gp,10);grid()}return}
   if(e.target.id==="sendb"){if(S.owner&&tg&&tg.openTelegramLink){tg.openTelegramLink("https://t.me/"+S.owner)}else if(S.owner){window.open("https://t.me/"+S.owner,"_blank")}else say("Контакт владельца ещё не настроен","var(--bad)");return}
-  if(e.target.id==="wdb"){var ids=S.inv.filter(function(g){return sel[g.id]});if(ids.length!==1){say("Выбери ровно один подарок для вывода","var(--bad)");return}if(!T[ids[0].t].nw&&S.bal+1e-9<WITHDRAW_FEE){say("Для вывода нужно "+WITHDRAW_FEE+" GRAM на балансе","var(--bad)");return}
+  if(e.target.id==="wdb"){var ids=S.inv.filter(function(g){return sel[g.id]});if(ids.length!==1){say("Выбери ровно один подарок для вывода","var(--bad)");return}if(!T[ids[0].t].nw&&!ids[0].fr&&S.bal+1e-9<WITHDRAW_FEE){errBox("Для вывода нужно "+WITHDRAW_FEE+" GRAM на балансе");return}
     api("/api/withdraw",{id:ids[0].id}).then(function(r){if(r.ok){var nwg=T[ids[0].t].nw;applyState(r.state);sel={};render();grid();say(nwg?"🎁 Подарок отправлен вам в Telegram":"Заявка принята, списано "+WITHDRAW_FEE+" GRAM — подарок придёт в Telegram","var(--ok)")}else say(r.error,"var(--bad)")});return}
   var b=e.target.closest(".cd");if(!b||busy)return;
   if(b.dataset.sh!==undefined){var sx=+b.dataset.sh,si0=(S.si||[]).filter(function(x){return x.id===sx})[0];if(!si0)return;if(si0.pr===0){say("Этот NFT ещё оценивается","var(--bad)");return}if(cart[sx])delete cart[sx];else cart[sx]=1;grid();return}
@@ -654,11 +656,13 @@ function confetti(){
     if(el<5000)raf=requestAnimationFrame(loop);else cx.clearRect(0,0,cv.width,cv.height)})(t0);
 }
 var wwdId=0;
+function errBox(m){try{if(tg&&tg.showAlert){tg.showAlert(m);return}}catch(e){}try{alert(m)}catch(e){}}
 function wdStart(id,nw,btn){
-  if(!API_URL){say("Вывод работает только на сервере","var(--bad)");return}
-  if(!nw&&S.bal+1e-9<WITHDRAW_FEE){hideWin();say("Для вывода нужно "+WITHDRAW_FEE+" GRAM на балансе — пополните баланс","var(--bad)");dmOpen();return}
-  var go=function(){if(btn)btn.disabled=true;api("/api/withdraw",{id:id}).then(function(r){if(btn)btn.disabled=false;if(r.ok){applyState(r.state);hideWin();render();grid();say(nw?"🎁 Подарок отправлен вам в Telegram":"Заявка принята, списано "+WITHDRAW_FEE+" GRAM — подарок придёт в Telegram","var(--ok)")}else say(r.error||"Ошибка","var(--bad)")}).catch(function(){if(btn)btn.disabled=false;say("Нет связи с сервером","var(--bad)")})};
-  var q=nw?"Вывести подарок? Он придёт вам в Telegram бесплатно.":"Вывести подарок? С баланса спишется "+WITHDRAW_FEE+" GRAM.";
+  if(!API_URL){errBox("Вывод работает только на сервере");return}
+  var gg_=(S.inv||[]).filter(function(x){return x.id===id})[0],fr_=!!(gg_&&gg_.fr);
+  if(!nw&&!fr_&&S.bal+1e-9<WITHDRAW_FEE){hideWin();errBox("Для вывода нужно "+WITHDRAW_FEE+" GRAM на балансе — пополните баланс");dmOpen();return}
+  var go=function(){if(btn)btn.disabled=true;api("/api/withdraw",{id:id}).then(function(r){if(btn)btn.disabled=false;if(r.ok){applyState(r.state);hideWin();render();grid();say(nw?"🎁 Подарок отправлен вам в Telegram":"Заявка принята, списано "+WITHDRAW_FEE+" GRAM — подарок придёт в Telegram","var(--ok)")}else errBox(r.error||"Ошибка вывода")}).catch(function(){if(btn)btn.disabled=false;errBox("Нет связи с сервером")})};
+  var q=(nw||fr_)?"Вывести подарок? Он придёт вам в Telegram бесплатно.":"Вывести подарок? С баланса спишется "+WITHDRAW_FEE+" GRAM.";
   if(tg&&tg.showConfirm)tg.showConfirm(q,function(ok){if(ok)go()});else go()}
 function showWin(g){var ig=(S.inv||[]).filter(function(x){return x.id===g.id})[0];$("wim").src=ig?gi(ig):gi(g);$("wpr").textContent=f(T[g.t].v);$("wn").textContent=T[g.t].n;$("wno").textContent="#"+g.no;wwdId=g.id;{var wb=$("wwd");wb.style.display="none";wb.textContent="Вывести · "+WITHDRAW_FEE+" GRAM"}
   var w=$("win");w.className="win";void w.offsetWidth;w.className="win show";confetti()}
