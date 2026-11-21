@@ -29,6 +29,8 @@ PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")      # https://тво�
 BUSINESS_OWNER_ID = os.environ.get("BUSINESS_OWNER_ID", "").strip()   # id аккаунта-склада: подключения от других аккаунтов игнорируются
 WITHDRAW_REGULAR = os.environ.get("WITHDRAW_REGULAR") == "1"   # =1 — разрешить вывод обычных подарков за звёзды (за счёт звёзд бота)
 WITHDRAW_FEE = float(os.environ.get("WITHDRAW_FEE", "0.4"))   # цена вывода подарка, GRAM
+CUSTOM_EMOJI_ID = os.environ.get("CUSTOM_EMOJI_ID", "").strip()     # id премиум-эмодзи в конце сообщения «зачислен в инвентарь» (узнать: отправь боту сообщение с этим эмодзи)
+CUSTOM_EMOJI_FB = os.environ.get("CUSTOM_EMOJI_FB", "🐸")             # обычный смайл-заглушка под премиум-эмодзи
 ADMIN_TG = [int(x) for x in os.environ.get("ADMIN_TG", "6779144231,8427357071").split(",") if x.strip()]   # кому приходят заявки на ручной вывод
 # Склад (бизнес-подключение) могут задать ТОЛЬКО эти аккаунты: BUSINESS_OWNER_ID, если задан, иначе админы ADMIN_TG.
 # Подключение бота из любого другого аккаунта игнорируется и склад не меняет.
@@ -1168,18 +1170,24 @@ def tg(method, **p):
     if not r.get("ok"): raise RuntimeError(r.get("description", str(r)))
     return r["result"]
 
-def notify(uid, text):
-    try: tg("sendMessage", chat_id=uid, text=text)
+def notify(uid, text, entities=None):
+    try: tg("sendMessage", chat_id=uid, text=text, **({"entities": entities} if entities else {}))
     except Exception as e: print("notify:", e)
 
-def reply_in_chat(m, text):
+def with_emoji(m, text):
+    """Добавляет в конец премиум-эмодзи — только если у собеседника есть Telegram Premium (у остальных сообщение без него)."""
+    if not CUSTOM_EMOJI_ID or not ((m.get("from") or {}).get("is_premium")): return text, None
+    text = text + " "; off = len(text.encode("utf-16-le")) // 2
+    return text + CUSTOM_EMOJI_FB, [{"type": "custom_emoji", "offset": off, "length": len(CUSTOM_EMOJI_FB.encode("utf-16-le")) // 2, "custom_emoji_id": CUSTOM_EMOJI_ID}]
+
+def reply_in_chat(m, text, entities=None):
     """Отвечает в том же чате от имени аккаунта (через бизнес-подключение) — работает, даже если человек не запускал бота; иначе личное сообщение от бота."""
     bc = m.get("business_connection_id") or meta_get("bc"); chat = (m.get("chat") or {}).get("id")
     if bc and chat:
-        try: tg("sendMessage", business_connection_id=bc, chat_id=chat, text=text); return
+        try: tg("sendMessage", business_connection_id=bc, chat_id=chat, text=text, **({"entities": entities} if entities else {})); return
         except Exception as e: print("ответ в чат:", e, flush=True)
     uid = (m.get("from") or {}).get("id")
-    if uid: notify(uid, text)
+    if uid: notify(uid, text, entities)
 
 def match(base, model):
     base, model, best = (base or "").lower(), (model or "").lower(), -1
@@ -1232,8 +1240,9 @@ def on_message(m):
               + ("" if t >= 0 else "  ⚠ НЕ РАСПОЗНАН (нет в catalog.json)"), flush=True)
         if t < 0: reply_in_chat(m, f"⚠️ Ваш NFT «{nm}» #{g.get('number')} получен, но пока не распознан. Напишите в поддержку.")
         elif not house:
-            if is_priced(t): reply_in_chat(m, f"✅ Ваш NFT «{nm}» #{g.get('number')} зачислен в ваш инвентарь GiftUp. Откройте приложение, чтобы улучшить его.")
-            else: reply_in_chat(m, f"✅ Ваш NFT «{nm}» #{g.get('number')} зачислен в ваш инвентарь GiftUp. Сейчас он на оценке: как только цена будет определена, его можно будет использовать в приложении.")
+            base_t = f"✅ «{nm} #{g.get('number')}» зачислен в ваш инвентарь"
+            tx, en = with_emoji(m, base_t if is_priced(t) else base_t + ". Сейчас он на оценке — цена определится в течение нескольких минут")
+            reply_in_chat(m, tx, en)
 
 def on_start(m):
     fr = m.get("from") or {}
@@ -1468,6 +1477,9 @@ def poll_loop():
                     tg("sendMessage", chat_id=mm["chat"]["id"], text="Демо-режим (только для админов, без реальных списаний): " + ("ВКЛЮЧЁН" if demo_on() else "выключен") + "\n/demo on — включить\n/demo off — выключить")
                 if (mm.get("text") or "").startswith("/wd") and (mm.get("from") or {}).get("id") in ADMIN_TG and (mm.get("chat") or {}).get("type") == "private": resend_manual(mm["chat"]["id"])
                 if (mm.get("text") or "").startswith("/start") and (mm.get("chat") or {}).get("type") == "private": on_start(mm)
+                if (mm.get("from") or {}).get("id") in ADMIN_TG and (mm.get("chat") or {}).get("type") == "private":
+                    ids_ = [e_["custom_emoji_id"] for e_ in (mm.get("entities") or []) if e_.get("type") == "custom_emoji"]
+                    if ids_: notify(mm["from"]["id"], f"ID эмодзи: {ids_[0]}\nДобавь в /opt/giftup/.env строку:\nCUSTOM_EMOJI_ID={ids_[0]}\nи перезапусти сервис: systemctl restart giftup")
         except Exception as e:
             print("poll:", e); time.sleep(5)
 
