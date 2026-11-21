@@ -235,7 +235,7 @@ requestAnimationFrame(frame)})();
 <circle cx="100" cy="100" r="62" fill="#101014" stroke="#0b0b0e" stroke-width="5"/>
 <g fill="#4b4b53" font-size="7.4" font-weight="800" text-anchor="middle" font-family="'Unbounded','Montserrat',system-ui,sans-serif" letter-spacing=".4"><text x="100" y="-1.5">100%</text><text x="-7" y="102.5">50%</text><text x="207" y="102.5">50%</text><text x="100" y="206.5">0%</text></g>
 <g id="ptr" style="transform-origin:100px 100px;transition:transform 7.5s cubic-bezier(.12,.7,.1,1)">
-<line x1="100" y1="194" x2="100" y2="172" stroke="url(#ptg)" stroke-width="2.6" stroke-linecap="butt"/><path d="M100 158.5L108 177Q100 173.2 92 177Z" fill="url(#ptg)" stroke="url(#ptg)" stroke-width="1.6" stroke-linejoin="round"/><circle cx="100" cy="194.2" r="4.1" fill="url(#ptg)"/></g></svg><div class="mid" id="mid"></div></div>
+<line x1="100" y1="194" x2="100" y2="172" stroke="url(#ptg)" stroke-width="1.7" stroke-linecap="butt"/><path d="M100 158.5L105.6 176.5Q100 173.2 94.4 176.5Z" fill="url(#ptg)" stroke="url(#ptg)" stroke-width="1.2" stroke-linejoin="round"/><circle cx="100" cy="194.2" r="3.2" fill="url(#ptg)"/></g></svg><div class="mid" id="mid"></div></div>
 <div class="slots">
 <div class="slot" id="s1"><div class="mc" id="s1c"></div><div class="t" id="s1t"></div></div>
 <button class="slot" id="s2"></button></div>
@@ -651,9 +651,9 @@ $("go").onclick=function(){
   var roll=Math.random()*100;spin(roll,Math.abs(roll-50)<ch/2,w,ex,null,null);
 };
 function spin(roll,win,w,ex,gift,st){
-  var dur=fast?2000:4500;
-  rot=Math.ceil(rot/360)*360+(fast?1080:2160)+(roll-50)*3.6;
-  $("ptr").style.transition="transform "+dur+"ms cubic-bezier(.05,.92,.15,1)";$("ptr").style.transform="rotate("+rot+"deg)";
+  var dur=fast?2000:4200;
+  rot=Math.ceil(rot/360)*360+(fast?1080:1800)+(roll-50)*3.6;
+  $("ptr").style.transition="transform "+dur+"ms cubic-bezier(.18,.9,.45,1)";$("ptr").style.transform="rotate("+rot+"deg)";
   say("Крутим…");
   setTimeout(function(){
     var g=gift;
